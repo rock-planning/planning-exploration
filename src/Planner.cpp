@@ -11,3 +11,9 @@ Planner::~Planner()
 {
 
 }
+
+base::Pose2D Planner::getExplorationTarget()
+{
+	base::Pose2D target;
+	return target;
+}

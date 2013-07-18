@@ -1,4 +1,5 @@
 rock_library(exploration
     SOURCES Planner.cpp
-    HEADERS Planner.hpp)
+    HEADERS Planner.hpp
+    DEPS_PKGCONFIG base-types)
 
