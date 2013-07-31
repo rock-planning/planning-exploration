@@ -2,7 +2,7 @@
 #define _EXPLORATION_PLANNER_HPP_
 
 #include <base/Pose.hpp>
-#include <base/time.h>
+#include <envire/maps/TraversabilityGrid.hpp>
 
 namespace exploration
 {
@@ -12,10 +12,9 @@ namespace exploration
 		Planner();
 		~Planner();
 			
-		base::Pose2D getExplorationTarget();
+		base::Pose2D getExplorationTarget(envire::TraversabilityGrid map, base::Pose2D pose);
 
 	private:
-			base::Time mTimeStamp;
 			
 	};
 

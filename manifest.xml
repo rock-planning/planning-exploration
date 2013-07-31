@@ -7,4 +7,5 @@
   <url>http://robotik.dfki-bremen.de</url>
   <logo>http://</logo>
   <depend package="base/types" />
+  <depend package="slam/envire" />
 </package>

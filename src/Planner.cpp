@@ -12,7 +12,7 @@ Planner::~Planner()
 
 }
 
-base::Pose2D Planner::getExplorationTarget()
+base::Pose2D Planner::getExplorationTarget(envire::TraversabilityGrid map, base::Pose2D pose)
 {
 	base::Pose2D target;
 	return target;
