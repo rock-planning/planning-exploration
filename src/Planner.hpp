@@ -1,23 +1,22 @@
-#ifndef _EXPLORATION_PLANNER_HPP_
-#define _EXPLORATION_PLANNER_HPP_
+#ifndef EXPLORATION_EXPLORATION_PLANNER_H
+#define EXPLORATION_EXPLORATION_PLANNER_H
 
-#include <base/Pose.hpp>
-#include <envire/maps/TraversabilityGrid.hpp>
+#include "Types.hpp"
+
+#define PLANNER_SUCCESS 0
+#define PLANNER_NO_GOAL 100
+#define PLANNER_ERROR   400
 
 namespace exploration
 {
 	class Planner
 	{
-	public: 
+	public:
 		Planner();
 		~Planner();
-			
-		base::Pose2D getExplorationTarget(envire::TraversabilityGrid map, base::Pose2D pose);
 
-	private:
-			
+		int explore(GridMap map, GridPoint start, GridPoint &goal);
 	};
-
 }
 
 #endif
