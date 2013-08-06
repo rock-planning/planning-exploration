@@ -12,6 +12,7 @@
   </VirtualDirectory>
   <VirtualDirectory Name="include">
     <File Name="src/Planner.hpp"/>
+    <File Name="src/Types.hpp"/>
   </VirtualDirectory>
   <VirtualDirectory Name="build">
     <File Name="CMakeLists.txt"/>
