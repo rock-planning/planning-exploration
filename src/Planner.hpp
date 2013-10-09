@@ -3,10 +3,6 @@
 
 #include "Types.hpp"
 
-#define PLANNER_SUCCESS 0
-#define PLANNER_NO_GOAL 100
-#define PLANNER_ERROR   400
-
 namespace exploration
 {
 	class Planner
@@ -15,7 +11,24 @@ namespace exploration
 		Planner();
 		~Planner();
 
-		int explore(GridMap map, GridPoint start, GridPoint &goal);
+		enum Status {SUCCESS, NO_GOAL, ERROR};
+		
+		/** Returns the result of the last operation */
+		Status getStatus() {return mStatus;}
+		
+		/** Returns the result message of the last operation */
+		char* getStatusMessage() {return mStatusMessage;}
+		
+		/** Returns a list of reachable frontier cells ordered by distance to 'start' */
+		PointList getFrontierCells(GridMap* map, GridPoint start, bool stopAtFirst = false);
+		
+		/** Returns a set of connected frontiers ordered by distance to 'start' */
+		FrontierList getFrontiers(GridMap* map, GridPoint start);
+		
+	private:
+		Status mStatus;
+		char mStatusMessage[500];
+		
 	};
 }
 

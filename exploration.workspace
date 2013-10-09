@@ -1,10 +1,9 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <CodeLite_Workspace Name="exploration" Database="./exploration.tags">
-  <Project Name="Planner" Path="Planner.project" Active="No"/>
+  <Project Name="Planner" Path="Planner.project" Active="Yes"/>
   <Environment>
     <![CDATA[]]>
   </Environment>
-  <Project Name="Orogen" Path="../orogen/exploration_planner/Orogen.project" Active="Yes"/>
   <BuildMatrix>
     <WorkspaceConfiguration Name="Debug" Selected="yes">
       <Project Name="Planner" ConfigName="Debug"/>

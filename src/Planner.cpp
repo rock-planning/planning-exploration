@@ -1,6 +1,7 @@
 #include <map>
 
 #include "Planner.hpp"
+#include <stdio.h>
 
 using namespace exploration;
 
@@ -16,10 +17,13 @@ Planner::~Planner()
 {
 }
 
-int Planner::explore(GridMap map, GridPoint start, GridPoint &goal)
+PointList Planner::getFrontierCells(GridMap* map, GridPoint start, bool stopAtFirst)
 {
+	// Create the result list
+	PointList result;
+	
 	// Create some workspace for the wavefront algorithm
-	GridMap plan = GridMap(map.getWidth(), map.getHeight());
+	GridMap plan = GridMap(map->getWidth(), map->getHeight());
 	
 	// Initialize the queue with the robot position
 	Queue queue;
@@ -30,7 +34,6 @@ int Planner::explore(GridMap map, GridPoint start, GridPoint &goal)
 	Queue::iterator next;
 	int distance;
 	GridPoint point;
-	bool foundFrontier = false;
 	int cellCount = 0;
 	
 	// Do full search with weightless Dijkstra-Algorithm
@@ -42,9 +45,10 @@ int Planner::explore(GridMap map, GridPoint start, GridPoint &goal)
 		distance = next->first;
 		point = next->second;
 		queue.erase(next);
+		bool foundFrontier = false;
 		
 		// Add all adjacent cells
-		if(point.x <= 1 || point.x >= (map.getWidth() - 1) || point.y <= 1 || point.y >= (map.getHeight() -1))
+		if(point.x <= 1 || point.x >= (map->getWidth() - 1) || point.y <= 1 || point.y >= (map->getHeight() -1))
 		{
 			// We reached the border of the map, which is unexplored terrain as well:
 			foundFrontier = true;
@@ -60,8 +64,18 @@ int Planner::explore(GridMap map, GridPoint start, GridPoint &goal)
 			for(unsigned int it = 0; it < 4; it++)
 			{
 				char mapValue, planValue;
-				if(!map.getData(neighbors[it], mapValue)) return PLANNER_ERROR;
-				if(!plan.getData(neighbors[it], planValue)) return PLANNER_ERROR;
+				if(!map->getData(neighbors[it], mapValue))
+				{
+					mStatus = ERROR;
+					sprintf(mStatusMessage, "Out of range error when accessing map.");
+					return result;
+				}
+				if(!plan.getData(neighbors[it], planValue))
+				{
+					mStatus = ERROR;
+					sprintf(mStatusMessage, "Out of range error when accessing plan.");
+					return result;
+				}
 
 				if(mapValue == -1)
 				{
@@ -75,15 +89,24 @@ int Planner::explore(GridMap map, GridPoint start, GridPoint &goal)
 				}
 			}
 		}
-		if(foundFrontier) break;
+		if(foundFrontier) 
+		{
+			GridPoint frontier = point;
+			frontier.distance = distance;
+			result.push_back(frontier);
+			if(stopAtFirst) break;
+		}
 	}
 	
-	if(foundFrontier)
+	// Set result message and return the point list
+	if(result.size() > 0)
 	{
-		goal = point;
-		return PLANNER_SUCCESS;
+		mStatus = SUCCESS;
+		sprintf(mStatusMessage, "Found %d reachable frontier cells.", result.size());
 	}else
 	{
-		return PLANNER_NO_GOAL;
+		mStatus = NO_GOAL;
+		sprintf(mStatusMessage, "No reachable frontier cells found.");
 	}
+	return result;
 }

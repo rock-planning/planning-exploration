@@ -1,13 +1,19 @@
 #ifndef EXPLORATION_TYPES_H
 #define EXPLORATION_TYPES_H
 
+#include <vector>
+
 namespace exploration
-{
+{	
 	struct GridPoint
 	{
 		unsigned int x;
 		unsigned int y;
+		int distance;
 	};
+
+	typedef std::vector<GridPoint> PointList;
+	typedef std::vector<PointList> FrontierList;
 
 	class GridMap
 	{
@@ -28,7 +34,7 @@ namespace exploration
 			data = d;
 			isAllocated = false;
 		}
-		
+
 		~GridMap()
 		{
 			if(isAllocated) delete[] data;
