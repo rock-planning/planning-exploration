@@ -25,12 +25,16 @@ namespace exploration
 		/** Returns a set of connected frontiers ordered by distance to 'start' */
 		FrontierList getFrontiers(GridMap* map, GridPoint start);
 		
+		/** Returns the number of reachable frontier cells after detection */
+		unsigned int getFrontierCellCount() {return mFrontierCellCount;}
+		
 	private:
 		PointList getNeighbors(GridPoint p, bool diagonal = false);
 	
 		Status mStatus;
 		char mStatusMessage[500];
 		
+		unsigned int mFrontierCellCount;
 	};
 }
 

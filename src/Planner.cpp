@@ -11,6 +11,7 @@ typedef std::pair<int,GridPoint> Entry;
 
 Planner::Planner()
 {
+	mFrontierCellCount = 0;
 }
 
 Planner::~Planner()
@@ -39,11 +40,10 @@ PointList Planner::getNeighbors(GridPoint p, bool diagonal)
 
 PointList Planner::getFrontierCells(GridMap* map, GridPoint start, bool stopAtFirst)
 {
-	// Create the result list
-	PointList result;
-	
-	// Create some workspace for the wavefront algorithm
+	// Initialization
+	mFrontierCellCount = 0;
 	GridMap plan = GridMap(map->getWidth(), map->getHeight());
+	PointList result;
 	
 	// Initialize the queue with the robot position
 	Queue queue;
@@ -95,6 +95,7 @@ PointList Planner::getFrontierCells(GridMap* map, GridPoint start, bool stopAtFi
 			GridPoint frontier = point;
 			frontier.distance = distance;
 			result.push_back(frontier);
+			mFrontierCellCount++;
 			if(stopAtFirst) break;
 		}
 	}
