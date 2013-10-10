@@ -17,6 +17,26 @@ Planner::~Planner()
 {
 }
 
+PointList Planner::getNeighbors(GridPoint p, bool diagonal)
+{
+	PointList neighbors;
+	GridPoint n;
+	
+	n.x = p.x-1 ; n.y = p.y   ; neighbors.push_back(n);
+	n.x = p.x   ; n.y = p.y-1 ; neighbors.push_back(n);
+	n.x = p.x+1 ; n.y = p.y   ; neighbors.push_back(n);
+	n.x = p.x   ; n.y = p.y+1 ; neighbors.push_back(n);
+	
+	if(diagonal)
+	{
+		n.x = p.x-1 ; n.y = p.y-1 ; neighbors.push_back(n);
+		n.x = p.x-1 ; n.y = p.y+1 ; neighbors.push_back(n);
+		n.x = p.x+1 ; n.y = p.y-1 ; neighbors.push_back(n);
+		n.x = p.x+1 ; n.y = p.y+1 ; neighbors.push_back(n);
+	}
+	return neighbors;
+}
+
 PointList Planner::getFrontierCells(GridMap* map, GridPoint start, bool stopAtFirst)
 {
 	// Create the result list
@@ -48,47 +68,28 @@ PointList Planner::getFrontierCells(GridMap* map, GridPoint start, bool stopAtFi
 		bool foundFrontier = false;
 		
 		// Add all adjacent cells
-		if(point.x <= 1 || point.x >= (map->getWidth() - 1) || point.y <= 1 || point.y >= (map->getHeight() -1))
+		PointList neighbors = getNeighbors(point);
+		for(unsigned int it = 0; it < neighbors.size(); it++)
 		{
-			// We reached the border of the map, which is unexplored terrain as well:
-			foundFrontier = true;
-		}else
-		{
-			GridPoint neighbors[4];
-			neighbors[0] = neighbors[1] = neighbors[2] = neighbors[3] = point;
-			neighbors[0].x -= 1;  // left
-			neighbors[1].x += 1;  // right
-			neighbors[2].y -= 1;  // up
-			neighbors[3].y += 1;  // down
-			
-			for(unsigned int it = 0; it < 4; it++)
+			char mapValue, planValue;
+			if(!map->getData(neighbors[it], mapValue) || mapValue == -1)
 			{
-				char mapValue, planValue;
-				if(!map->getData(neighbors[it], mapValue))
-				{
-					mStatus = ERROR;
-					sprintf(mStatusMessage, "Out of range error when accessing map.");
-					return result;
-				}
-				if(!plan.getData(neighbors[it], planValue))
-				{
-					mStatus = ERROR;
-					sprintf(mStatusMessage, "Out of range error when accessing plan.");
-					return result;
-				}
+				foundFrontier = true;
+				continue;
+			}
+			if(!plan.getData(neighbors[it], planValue))
+			{
+				foundFrontier = true;
+				continue;
+			}
 
-				if(mapValue == -1)
-				{
-					foundFrontier = true;
-					break;
-				}
-				if(mapValue == 0 && planValue == -1)
-				{
-					queue.insert(Entry(distance+1, neighbors[it]));
-					plan.setData(neighbors[it],0);
-				}
+			if(mapValue == 0 && planValue == -1)
+			{
+				queue.insert(Entry(distance+1, neighbors[it]));
+				plan.setData(neighbors[it],0);
 			}
 		}
+
 		if(foundFrontier) 
 		{
 			GridPoint frontier = point;
@@ -108,5 +109,14 @@ PointList Planner::getFrontierCells(GridMap* map, GridPoint start, bool stopAtFi
 		mStatus = NO_GOAL;
 		sprintf(mStatusMessage, "No reachable frontier cells found.");
 	}
+	return result;
+}
+
+FrontierList Planner::getFrontiers(GridMap* map, GridPoint start)
+{
+	mStatus = NOT_IMPLEMENTED;
+	sprintf(mStatusMessage, "Method getFrontiers() is not implemented.");
+	
+	FrontierList result;
 	return result;
 }

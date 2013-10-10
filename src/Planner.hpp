@@ -11,7 +11,7 @@ namespace exploration
 		Planner();
 		~Planner();
 
-		enum Status {SUCCESS, NO_GOAL, ERROR};
+		enum Status {SUCCESS, NO_GOAL, ERROR, NOT_IMPLEMENTED};
 		
 		/** Returns the result of the last operation */
 		Status getStatus() {return mStatus;}
@@ -26,6 +26,8 @@ namespace exploration
 		FrontierList getFrontiers(GridMap* map, GridPoint start);
 		
 	private:
+		PointList getNeighbors(GridPoint p, bool diagonal = false);
+	
 		Status mStatus;
 		char mStatusMessage[500];
 		
