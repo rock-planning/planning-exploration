@@ -85,7 +85,7 @@ PointList Planner::getFrontierCells(GridMap* map, GridPoint start, bool stopAtFi
 				if(mapValue == 0 && planValue == -1)
 				{
 					queue.insert(Entry(distance+1, neighbors[it]));
-					plan.setData(neighbors[it],distance+1);
+					plan.setData(neighbors[it],0);
 				}
 			}
 		}
