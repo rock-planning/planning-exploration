@@ -47,19 +47,16 @@ PointList Planner::getFrontierCells(GridMap* map, GridPoint start, bool stopAtFi
 	
 	// Initialize the queue with the robot position
 	Queue queue;
-	Entry startPoint(0, start);
-	queue.insert(startPoint);
+	queue.insert(Entry(0, start));
 	plan.setData(start, 0);
 	
 	Queue::iterator next;
 	int distance;
 	GridPoint point;
-	int cellCount = 0;
 	
 	// Do full search with weightless Dijkstra-Algorithm
 	while(!queue.empty())
 	{
-		cellCount++;
 		// Get the nearest cell from the queue
 		next = queue.begin();
 		distance = next->first;
@@ -69,8 +66,7 @@ PointList Planner::getFrontierCells(GridMap* map, GridPoint start, bool stopAtFi
 		
 		// Add all adjacent cells
 		PointList neighbors = getNeighbors(point);
-		PointList::iterator cell;
-		for(cell = neighbors.begin(); cell < neighbors.end(); cell++)
+		for(PointList::iterator cell = neighbors.begin(); cell < neighbors.end(); cell++)
 		{
 			if(map->getData(*cell) == -1)
 			{
@@ -110,9 +106,60 @@ PointList Planner::getFrontierCells(GridMap* map, GridPoint start, bool stopAtFi
 
 FrontierList Planner::getFrontiers(GridMap* map, GridPoint start)
 {
-	mStatus = NOT_IMPLEMENTED;
-	sprintf(mStatusMessage, "Method getFrontiers() is not implemented.");
-	
+	// Initialization
+	mFrontierCellCount = 0;
+	GridMap plan = GridMap(map->getWidth(), map->getHeight());
 	FrontierList result;
+	
+	// Initialize the queue with the robot position
+	Queue queue;
+	queue.insert(Entry(0, start));
+	plan.setData(start, 0);
+	
+	Queue::iterator next;
+	int distance;
+	GridPoint point;
+	
+	// Do full search with weightless Dijkstra-Algorithm
+	while(!queue.empty())
+	{		
+		// Get the nearest cell from the queue
+		next = queue.begin();
+		distance = next->first;
+		point = next->second;
+		queue.erase(next);
+		
+		// Add neighbors
+		bool isFrontier = false;
+		PointList neighbors = getNeighbors(point, true);
+		for(PointList::iterator cell = neighbors.begin(); cell < neighbors.end(); cell++)
+		{
+			if(map->getData(*cell) == -1)
+			{
+				isFrontier = true;
+				continue;
+			}
+			if(map->getData(*cell) == 0 && plan.getData(*cell) == -1)
+			{
+				queue.insert(Entry(distance+1, *cell));
+				plan.setData(*cell,0);
+			}
+		}
+		
+		if(isFrontier)
+		{
+			result.push_back(getFrontier(map, &plan, point));
+		}
+	}
+	
 	return result;
+}
+
+PointList Planner::getFrontier(GridMap* map, GridMap* plan, GridPoint start)
+{
+	PointList frontier;
+	frontier.push_back(start);
+	mFrontierCellCount++;
+	
+	return frontier;
 }

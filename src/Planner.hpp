@@ -30,6 +30,7 @@ namespace exploration
 		
 	private:
 		PointList getNeighbors(GridPoint p, bool diagonal = false);
+		PointList getFrontier(GridMap* map, GridMap* plan, GridPoint start);
 	
 		Status mStatus;
 		char mStatusMessage[500];
