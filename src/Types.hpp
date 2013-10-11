@@ -40,11 +40,12 @@ namespace exploration
 			if(isAllocated) delete[] data;
 		}
 
-		bool getData(GridPoint p, char &v)
+		char getData(GridPoint p)
 		{
-			if(p.x >= width || p.y >= height) return false;
-			v = data[(p.y*width)+p.x];
-			return true;
+			if(p.x >= width || p.y >= height)
+				return -1;
+			else
+				return data[(p.y*width)+p.x];
 		}
 
 		bool setData(GridPoint p, char v)

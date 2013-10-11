@@ -69,24 +69,19 @@ PointList Planner::getFrontierCells(GridMap* map, GridPoint start, bool stopAtFi
 		
 		// Add all adjacent cells
 		PointList neighbors = getNeighbors(point);
-		for(unsigned int it = 0; it < neighbors.size(); it++)
+		PointList::iterator cell;
+		for(cell = neighbors.begin(); cell < neighbors.end(); cell++)
 		{
-			char mapValue, planValue;
-			if(!map->getData(neighbors[it], mapValue) || mapValue == -1)
-			{
-				foundFrontier = true;
-				continue;
-			}
-			if(!plan.getData(neighbors[it], planValue))
+			if(map->getData(*cell) == -1)
 			{
 				foundFrontier = true;
 				continue;
 			}
 
-			if(mapValue == 0 && planValue == -1)
+			if(map->getData(*cell) == 0 && plan.getData(*cell) == -1)
 			{
-				queue.insert(Entry(distance+1, neighbors[it]));
-				plan.setData(neighbors[it],0);
+				queue.insert(Entry(distance+1, *cell));
+				plan.setData(*cell,0);
 			}
 		}
 
