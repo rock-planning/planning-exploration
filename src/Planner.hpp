@@ -31,11 +31,13 @@ namespace exploration
 	private:
 		PointList getNeighbors(GridPoint p, bool diagonal = false);
 		PointList getFrontier(GridMap* map, GridMap* plan, GridPoint start);
+		bool isFrontierCell(GridMap* map, GridPoint point);
 	
 		Status mStatus;
 		char mStatusMessage[500];
 		
 		unsigned int mFrontierCellCount;
+		char mFrontierCount;
 	};
 }
 
