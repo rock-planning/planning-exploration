@@ -6,4 +6,6 @@
   <license></license>
   <url>http://robotik.dfki-bremen.de</url>
   <logo>http://</logo>
+  <depend package="base/cmake" />
+  <depend package="base/types" />
 </package>
