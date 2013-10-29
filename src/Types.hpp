@@ -12,8 +12,23 @@ namespace exploration
 		int distance;
 	};
 
+	struct FloatPoint
+	{
+		double x;
+		double y;
+	};
+
+	struct Pose
+	{
+		double x;
+		double y;
+		double theta;
+	};
+
 	typedef std::vector<GridPoint> PointList;
 	typedef std::vector<PointList> FrontierList;
+	typedef std::vector<FloatPoint> Polygon;
+	typedef std::vector<Polygon> SensorField;
 
 	class GridMap
 	{
@@ -55,6 +70,14 @@ namespace exploration
 			return true;
 		}
 
+		char* getData() {return data;}
+		bool setData(unsigned int index, char v)
+		{
+			if(!isAllocated || index >= width * height) return false;
+			data[index] = v;
+			return true;
+		}
+		
 		unsigned int getWidth() {return width;}
 		unsigned int getHeight() {return height;}
 
@@ -63,7 +86,7 @@ namespace exploration
 		unsigned int width;
 		unsigned int height;
 		bool isAllocated;
-	};	
+	};
 }
 
 #endif

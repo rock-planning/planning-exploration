@@ -1,7 +1,8 @@
-#include <map>
-
 #include "Planner.hpp"
+
+#include <map>
 #include <stdio.h>
+#include <math.h>
 
 using namespace exploration;
 
@@ -12,10 +13,12 @@ typedef std::pair<int,GridPoint> Entry;
 Planner::Planner()
 {
 	mFrontierCellCount = 0;
+	mCoverageMap = NULL;
 }
 
 Planner::~Planner()
 {
+	if(mCoverageMap) delete mCoverageMap;
 }
 
 PointList Planner::getNeighbors(GridPoint p, bool diagonal)
@@ -104,7 +107,7 @@ PointList Planner::getFrontierCells(GridMap* map, GridPoint start, bool stopAtFi
 	if(result.size() > 0)
 	{
 		mStatus = SUCCESS;
-		sprintf(mStatusMessage, "Found %d reachable frontier cells.", result.size());
+		sprintf(mStatusMessage, "Found %d reachable frontier cells.", (int)result.size());
 	}else
 	{
 		mStatus = NO_GOAL;
@@ -157,7 +160,7 @@ FrontierList Planner::getFrontiers(GridMap* map, GridPoint start)
 			result.push_back(getFrontier(map, &plan, point));
 		}
 		
-		if(mFrontierCount > 200) break;
+		if(mFrontierCount > 100) break;
 	}
 	
 	// Set result message and return the point list
@@ -209,4 +212,135 @@ PointList Planner::getFrontier(GridMap* map, GridMap* plan, GridPoint start)
 	}
 	
 	return frontier;
+}
+
+void Planner::initCoverageMap(GridMap* map)
+{
+	if(mCoverageMap) delete mCoverageMap;
+	
+	unsigned int width = map->getWidth();
+	unsigned int height = map->getHeight();
+	unsigned int size = width * height;
+	mCoverageMap = new GridMap(width, height);
+	
+	char* origin = map->getData();
+	for(unsigned int i = 0; i < size; i++)
+	{
+		if(origin[i] == 0)
+			mCoverageMap->setData(i, -1);
+		else
+			mCoverageMap->setData(i, 1);
+	}
+}
+
+void Planner::setCoverageMap(PointList points, char value)
+{
+	PointList::iterator i;
+	for(i = points.begin(); i < points.end(); i++)
+	{
+		mCoverageMap->setData(*i, value);
+	}
+}
+
+void Planner::addReading(Pose p)
+{
+	// TODO: Transform SensorFields to Pose p
+	SensorField transformedSF = transformSensorField(p);
+	
+	// Rasterize transformed SensorField
+	SensorField::iterator sensor;
+	Polygon::iterator point;
+	FloatPoint min, max, current;
+	for(sensor = transformedSF.begin(); sensor < transformedSF.end(); sensor++)
+	{
+		// Determine bounding box for efficiency
+		min = max = *(sensor->begin());
+		for(point = sensor->begin()+1; point < sensor->end(); point++)
+		{
+			if(point->x < min.x) min.x = point->x;
+			if(point->x > max.x) max.x = point->x;
+			if(point->y < min.y) min.y = point->y;
+			if(point->y > max.y) max.y = point->y;
+		}
+		
+		// Rasterize polygon
+		for(int y = min.y; y <= max.y; y++)
+		{
+			for(int x = min.x; x <= max.x; x++)
+			{
+				current.x = x;
+				current.y = y;
+				if(pointInPolygon(current, *sensor))
+				{
+					GridPoint gp;
+					gp.x = current.x;
+					gp.y = current.y;
+					mCoverageMap->setData(gp, 0);
+				}
+			}
+		}
+	}
+}
+
+// http://alienryderflex.com/polygon/
+bool Planner::pointInPolygon(FloatPoint point, Polygon polygon)
+{
+	int   j = polygon.size() - 1;
+	bool  oddNodes = false;
+
+	for (unsigned int i = 0; i < polygon.size(); i++)
+	{
+		if ((polygon[i].y < point.y && polygon[j].y >= point.y) ||
+			(polygon[j].y < point.y && polygon[i].y >= point.y))
+		{
+			if (polygon[i].x + (point.y-polygon[i].y) / (polygon[j].y-polygon[i].y) * (polygon[j].x-polygon[i].x) < point.x)
+			{
+				oddNodes = !oddNodes;
+			}
+		}
+		j = i;
+	}
+	return oddNodes;
+}
+
+SensorField Planner::transformSensorField(Pose pose)
+{
+	SensorField::iterator sensor;
+	SensorField field;
+	for(sensor = mSensorField.begin(); sensor < mSensorField.end(); sensor++)
+	{
+		field.push_back(transformPolygon(*sensor, pose));
+	}
+	return field;
+}
+
+Polygon Planner::transformPolygon(Polygon polygon, Pose pose)
+{
+	Polygon::iterator p;
+	for(p = polygon.begin(); p < polygon.end(); p++)
+	{
+		double x_ =  (p->x * cos(-pose.theta)) + (p->y * sin(-pose.theta));
+		double y_ = -(p->x * sin(-pose.theta)) + (p->y * cos(-pose.theta));
+		p->x = pose.x + x_;
+		p->y = pose.y + y_;
+	}
+	return polygon;
+}
+
+PointList Planner::getUnexploredCells()
+{
+	PointList result;
+	GridPoint p;
+	
+	for(unsigned int y = 0; y < mCoverageMap->getHeight(); y++)
+	{
+		for(unsigned int x = 0; x < mCoverageMap->getWidth(); x++)
+		{
+			p.x = x;
+			p.y = y;
+			if(mCoverageMap->getData(p) == -1) 
+				result.push_back(p);
+		}
+	}	
+	return result;
 }

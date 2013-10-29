@@ -28,16 +28,28 @@ namespace exploration
 		/** Returns the number of reachable frontier cells after detection */
 		unsigned int getFrontierCellCount() {return mFrontierCellCount;}
 		
+		void initCoverageMap(GridMap* map);
+		void setCoverageMap(PointList points, char value);
+		void addReading(Pose p);
+		PointList getUnexploredCells();
+		void addSensor(Polygon p) {mSensorField.push_back(p);}
+		Polygon transformPolygon(Polygon polygon, Pose pose);
+		
 	private:
 		PointList getNeighbors(GridPoint p, bool diagonal = false);
 		PointList getFrontier(GridMap* map, GridMap* plan, GridPoint start);
 		bool isFrontierCell(GridMap* map, GridPoint point);
+		bool pointInPolygon(FloatPoint point, Polygon polygon);
+		SensorField transformSensorField(Pose pose);
 	
 		Status mStatus;
 		char mStatusMessage[500];
 		
 		unsigned int mFrontierCellCount;
 		char mFrontierCount;
+		
+		GridMap* mCoverageMap;
+		SensorField mSensorField;
 	};
 }
 
