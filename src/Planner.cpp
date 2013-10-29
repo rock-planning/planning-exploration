@@ -270,11 +270,13 @@ void Planner::addReading(Pose p)
 			{
 				current.x = x;
 				current.y = y;
-				if(pointInPolygon(current, *sensor) && isVisible(current, p))
+				GridPoint gp;
+				gp.x = x;
+				gp.y = y;
+				if(	mCoverageMap->getData(gp) == -1 && 
+					pointInPolygon(current, *sensor) && 
+					isVisible(current, p))
 				{
-					GridPoint gp;
-					gp.x = current.x;
-					gp.y = current.y;
 					mCoverageMap->setData(gp, 0);
 				}
 			}
