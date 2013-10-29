@@ -270,7 +270,7 @@ void Planner::addReading(Pose p)
 			{
 				current.x = x;
 				current.y = y;
-				if(pointInPolygon(current, *sensor))
+				if(pointInPolygon(current, *sensor) && isVisible(current, p))
 				{
 					GridPoint gp;
 					gp.x = current.x;
@@ -301,6 +301,32 @@ bool Planner::pointInPolygon(FloatPoint point, Polygon polygon)
 		j = i;
 	}
 	return oddNodes;
+}
+
+bool Planner::isVisible(FloatPoint point, Pose pose)
+{
+	double x = pose.x;
+	double y = pose.y;
+	
+	double delta_x = point.x - pose.x;
+	double delta_y = point.y - pose.y;
+	double delta = sqrt((delta_x*delta_x) + (delta_y*delta_y));
+	int step = delta;
+	double step_x = delta_x / step;
+	double step_y = delta_y / step;
+	
+	for(int i = 0; i <= step; i++)
+	{
+		GridPoint p;
+		p.x = x;
+		p.y = y;
+		if(mCoverageMap->getData(p) == 1)
+			return false;
+		
+		x += step_x;
+		y += step_y;
+	}
+	return true;
 }
 
 SensorField Planner::transformSensorField(Pose pose)

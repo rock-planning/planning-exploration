@@ -40,6 +40,7 @@ namespace exploration
 		PointList getFrontier(GridMap* map, GridMap* plan, GridPoint start);
 		bool isFrontierCell(GridMap* map, GridPoint point);
 		bool pointInPolygon(FloatPoint point, Polygon polygon);
+		bool isVisible(FloatPoint point, Pose pose);
 		SensorField transformSensorField(Pose pose);
 	
 		Status mStatus;
