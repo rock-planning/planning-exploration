@@ -28,14 +28,34 @@ namespace exploration
 		/** Returns the number of reachable frontier cells after detection */
 		unsigned int getFrontierCellCount() {return mFrontierCellCount;}
 		
+		/** Initializes a new coverage map from a given grid map
+		 *  All cells marked 'free' in the map are marked 'uncovered' in the coverage map */
 		void initCoverageMap(GridMap* map);
-		void setCoverageMap(PointList points, char value);
+		
+		/** Set a cell to a given value (used to add new obstacles)
+		 *  -1 : uncovered
+		 *   0 : covered
+		 *   1 : obstacle */
+		void setCoverageMap(PointList points, char value = 1);
+		
+		/** Cover all cells within sensor footprint from the given pose */
 		void addReading(Pose p);
+		
+		/** Get all cells that are still uncovered */
 		PointList getUnexploredCells();
+		
+		/** Add a sensor footprint to the internal sensor field */
 		void addSensor(Polygon p) {mSensorField.push_back(p);}
+		
+		/** Coordinate-transgform the given polygon to pose */ 
 		Polygon transformPolygon(Polygon polygon, Pose pose);
-		Pose getCoverageTarget(Pose start);
+		
+		/** Get reachable Frontiers in coverage map from given pose **/
 		FrontierList getCoverageFrontiers(Pose start);
+		
+		/** (Experimental!) 
+		 * Currently returns nearest frontier cell in coverage map */
+		Pose getCoverageTarget(Pose start);
 		
 	private:
 		PointList getNeighbors(GridPoint p, bool diagonal = false);
