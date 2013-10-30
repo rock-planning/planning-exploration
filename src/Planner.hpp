@@ -35,6 +35,7 @@ namespace exploration
 		void addSensor(Polygon p) {mSensorField.push_back(p);}
 		Polygon transformPolygon(Polygon polygon, Pose pose);
 		Pose getCoverageTarget(Pose start);
+		FrontierList getCoverageFrontiers(Pose start);
 		
 	private:
 		PointList getNeighbors(GridPoint p, bool diagonal = false);

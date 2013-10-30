@@ -317,7 +317,7 @@ bool Planner::isVisible(FloatPoint point, Pose pose)
 	double step_x = delta_x / step;
 	double step_y = delta_y / step;
 	
-	for(int i = 0; i <= step; i++)
+	for(int i = 0; i < step; i++)
 	{
 		GridPoint p;
 		p.x = x;
@@ -378,9 +378,22 @@ Pose Planner::getCoverageTarget(Pose start)
 	GridPoint startPoint;
 	startPoint.x = start.x;
 	startPoint.y = start.y;
-	GridPoint targetPoint = getFrontierCells(mCoverageMap, startPoint, true).at(0);
+	PointList fCells = getFrontierCells(mCoverageMap, startPoint);
+	PointList::iterator p;
 	Pose target;
-	target.x = targetPoint.x;
-	target.y = targetPoint.y;
+	for(p = fCells.begin(); p < fCells.end(); p++)
+	{
+		target.x = p->x;
+		target.y = p->y;
+		if(p->distance > 50) break;
+	}
 	return target;
+}
+
+FrontierList Planner::getCoverageFrontiers(Pose start)
+{
+	GridPoint startPoint;
+	startPoint.x = start.x;
+	startPoint.y = start.y;
+	return getFrontiers(mCoverageMap, startPoint);
 }
