@@ -372,3 +372,15 @@ PointList Planner::getUnexploredCells()
 	}	
 	return result;
 }
+
+Pose Planner::getCoverageTarget(Pose start)
+{
+	GridPoint startPoint;
+	startPoint.x = start.x;
+	startPoint.y = start.y;
+	GridPoint targetPoint = getFrontierCells(mCoverageMap, startPoint, true).at(0);
+	Pose target;
+	target.x = targetPoint.x;
+	target.y = targetPoint.y;
+	return target;
+}
