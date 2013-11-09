@@ -55,7 +55,7 @@ namespace exploration
 			if(isAllocated) delete[] data;
 		}
 
-		char getData(GridPoint p)
+		char getData(GridPoint p) const
 		{
 			if(p.x >= width || p.y >= height)
 				return -1;

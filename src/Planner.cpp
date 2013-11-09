@@ -397,3 +397,9 @@ FrontierList Planner::getCoverageFrontiers(Pose start)
 	startPoint.y = start.y;
 	return getFrontiers(mCoverageMap, startPoint);
 }
+
+const exploration::GridMap& Planner::getCoverageMap() const
+{
+    return *mCoverageMap;
+}
+

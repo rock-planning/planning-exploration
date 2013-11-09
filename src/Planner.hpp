@@ -56,6 +56,8 @@ namespace exploration
 		/** (Experimental!) 
 		 * Currently returns nearest frontier cell in coverage map */
 		Pose getCoverageTarget(Pose start);
+                
+                const GridMap& getCoverageMap() const;
 		
 	private:
 		PointList getNeighbors(GridPoint p, bool diagonal = false);
