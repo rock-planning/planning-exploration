@@ -2,7 +2,9 @@
 
 #include <map>
 #include <stdio.h>
+#include <iostream>
 #include <math.h>
+#include <boost/concept_check.hpp>
 
 using namespace exploration;
 
@@ -375,19 +377,46 @@ PointList Planner::getUnexploredCells()
 
 Pose Planner::getCoverageTarget(Pose start)
 {
+    
 	GridPoint startPoint;
 	startPoint.x = start.x;
 	startPoint.y = start.y;
 	PointList fCells = getFrontierCells(mCoverageMap, startPoint);
+//         GridPoint goalpt = getCheapest(fCells, start);
 	PointList::iterator p;
 	Pose target;
 	for(p = fCells.begin(); p < fCells.end(); p++)
 	{
 		target.x = p->x;
 		target.y = p->y;
-		if(p->distance > 50) break;
+                //std::cout << "possible goals: " << target.x << "/" << target.y << std::endl;
+		if(p->distance > 20 && p->distance < 30) break;
 	}
 	return target;
+}
+
+std::vector<base::Vector3d> Planner::getCheapest(std::vector<base::Vector3d> &pts, Pose pose)
+{
+//      int resolution; //todo
+     double yaw = pose.theta;
+     std::cout << "RobotYaw is:  " << yaw << std::endl;
+     std::vector<base::Vector3d> goals;
+     double delta = 0.3;
+     for(std::vector<base::Vector3d>::const_iterator i = pts.begin(); i != pts.end(); ++i)
+     {
+        double rotationOfPoint = atan2(i->y() - pose.y, i->x() - pose.x); 
+        if(rotationOfPoint < 0) {rotationOfPoint = fmod(rotationOfPoint + 2*M_PI, 2*M_PI);}
+        if (rotationOfPoint >= yaw-delta && rotationOfPoint <= yaw+delta){
+            goals.push_back(base::Vector3d(i->x(),i->y(), 0));
+        }
+         std::cout << "rotationOfPoint: " << i->x() << "/" << i->y() << " is " << rotationOfPoint << std::endl;
+     }
+     
+     if(goals.empty()){
+        std::cout << "did not find any ideal target" << std::endl;
+        goals.push_back(base::Vector3d(0, 0, 0));
+     } 
+     return goals;
 }
 
 FrontierList Planner::getCoverageFrontiers(Pose start)

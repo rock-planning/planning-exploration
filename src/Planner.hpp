@@ -2,6 +2,7 @@
 #define EXPLORATION_EXPLORATION_PLANNER_H
 
 #include "Types.hpp"
+#include <base/Eigen.hpp>
 
 namespace exploration
 {
@@ -58,6 +59,9 @@ namespace exploration
 		Pose getCoverageTarget(Pose start);
                 
                 const GridMap& getCoverageMap() const;
+                
+                /**get the point with least angular difference to robotpose **/
+                std::vector<base::Vector3d> getCheapest(std::vector<base::Vector3d> &pts, Pose pose);
 		
 	private:
 		PointList getNeighbors(GridPoint p, bool diagonal = false);
@@ -66,7 +70,7 @@ namespace exploration
 		bool pointInPolygon(FloatPoint point, Polygon polygon);
 		bool isVisible(FloatPoint point, Pose pose);
 		SensorField transformSensorField(Pose pose);
-	
+
 		Status mStatus;
 		char mStatusMessage[500];
 		
