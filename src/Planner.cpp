@@ -4,6 +4,7 @@
 #include <stdio.h>
 #include <iostream>
 #include <math.h>
+#include <algorithm> // sort
 #include <boost/concept_check.hpp>
 
 using namespace exploration;
@@ -162,7 +163,7 @@ FrontierList Planner::getFrontiers(GridMap* map, GridPoint start)
 			result.push_back(getFrontier(map, &plan, point));
 		}
 		
-		if(mFrontierCount > 100) break;
+		if(mFrontierCount > 10) break;
 	}
 	
 	// Set result message and return the point list
@@ -395,26 +396,63 @@ Pose Planner::getCoverageTarget(Pose start)
 	return target;
 }
 
-std::vector<base::Vector3d> Planner::getCheapest(std::vector<base::Vector3d> &pts, Pose pose)
+std::vector<base::samples::RigidBodyState> Planner::getCheapest(std::vector<base::Vector3d> &pts, Pose pose)
 {
 //      int resolution; //todo
-     double yaw = pose.theta;
-     std::cout << "RobotYaw is:  " << yaw << std::endl;
-     std::vector<base::Vector3d> goals;
-     double delta = 0.3;
+     double yaw, angularDistance;
+     // check if robot-rotation is negative. if so, map it to 2*pi 
+    if(pose.theta < 0)
+    {
+        yaw = 2*M_PI + pose.theta;
+    } else { 
+        yaw = pose.theta;
+    }
+     //std::cout << "RobotYaw is:  " << yaw << std::endl;
+     std::vector<std::pair<base::Vector3d, double> > listToBeSorted;
+     listToBeSorted.reserve(pts.size());
+     std::vector<base::samples::RigidBodyState> goals;
+     goals.reserve(pts.size());
+     
      for(std::vector<base::Vector3d>::const_iterator i = pts.begin(); i != pts.end(); ++i)
      {
+         //calculate angle of exploregoal-vector and map it to 0-2*pi radian
         double rotationOfPoint = atan2(i->y() - pose.y, i->x() - pose.x); 
-        if(rotationOfPoint < 0) {rotationOfPoint = fmod(rotationOfPoint + 2*M_PI, 2*M_PI);}
-        if (rotationOfPoint >= yaw-delta && rotationOfPoint <= yaw+delta){
-            goals.push_back(base::Vector3d(i->x(),i->y(), 0));
+        if(rotationOfPoint < 0) 
+        {
+            rotationOfPoint = fmod(rotationOfPoint + 2*M_PI, 2*M_PI);
         }
-         std::cout << "rotationOfPoint: " << i->x() << "/" << i->y() << " is " << rotationOfPoint << std::endl;
+        //calculate angular distance
+        angularDistance = fabs(yaw-rotationOfPoint);
+        if(fabs(yaw-rotationOfPoint) > M_PI)
+        {
+            angularDistance = 2*(M_PI - angularDistance);
+        }
+        //add it to the list which will be sorted afterwards
+        listToBeSorted.push_back(std::make_pair(*i, angularDistance));
+        //std::cout << "rotationOfPoint: " << i->x() << "/" << i->y() << " is " << rotationOfPoint << std::endl;
      }
      
-     if(goals.empty()){
-        std::cout << "did not find any ideal target" << std::endl;
-        goals.push_back(base::Vector3d(0, 0, 0));
+     // Sorting list by comparing the angular differences. uses the given lambda-function 
+     std::sort(listToBeSorted.begin(), listToBeSorted.end(), [](const std::pair<base::Vector3d, double>& i, const std::pair<base::Vector3d, double>& j) 
+     { return i.second < j.second; } );
+     
+     // copy the goalvectors of the sorted list of pairs into the std::vector that is going to be dumped on the port
+     for(std::vector<std::pair<base::Vector3d, double> >::const_iterator i = listToBeSorted.begin(); i != listToBeSorted.end(); ++i)
+     {
+         base::samples::RigidBodyState targetPose;
+         yaw += i->second;
+         if(yaw > 2*M_PI){yaw = fmod(yaw, 2*M_PI);}
+         targetPose.position = i->first;
+         targetPose.orientation = Eigen::Quaterniond(Eigen::AngleAxisd(yaw, Eigen::Vector3d::UnitZ()));
+         targetPose.targetFrame = "world";
+         targetPose.time = base::Time::now();
+         goals.push_back(targetPose);
+     }
+     
+     if(goals.empty())
+     {
+        std::cout << "did not find any target, propably stuck in an obstacle. Returning (0,0,0) as target." << std::endl;
+        //goals.push_back(base::Vector3d(0, 0, 0));
      } 
      return goals;
 }

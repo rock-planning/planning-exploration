@@ -2,6 +2,7 @@
 #define EXPLORATION_TYPES_H
 
 #include <vector>
+#include <base/Eigen.hpp>
 
 namespace exploration
 {	

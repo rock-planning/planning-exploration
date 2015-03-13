@@ -2,7 +2,7 @@
 #define EXPLORATION_EXPLORATION_PLANNER_H
 
 #include "Types.hpp"
-#include <base/Eigen.hpp>
+#include "../../../install/include/base/samples/RigidBodyState.hpp"
 
 namespace exploration
 {
@@ -60,8 +60,8 @@ namespace exploration
                 
                 const GridMap& getCoverageMap() const;
                 
-                /**get the point with least angular difference to robotpose **/
-                std::vector<base::Vector3d> getCheapest(std::vector<base::Vector3d> &pts, Pose pose);
+                /**get the point with least angular difference to robotpose. Uses compare-function for sorting **/
+                std::vector<base::samples::RigidBodyState> getCheapest(std::vector<base::Vector3d> &pts, Pose pose);
 		
 	private:
 		PointList getNeighbors(GridPoint p, bool diagonal = false);
