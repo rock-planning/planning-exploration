@@ -79,8 +79,8 @@ namespace exploration
 			return true;
 		}
 		
-		unsigned int getWidth() {return width;}
-		unsigned int getHeight() {return height;}
+		unsigned int getWidth() const {return width;}
+		unsigned int getHeight() const {return height;}
 
 	private:
 		char* data;

@@ -143,13 +143,15 @@ FrontierList Planner::getFrontiers(GridMap* map, GridPoint start)
 		
 		// Add neighbors
 		bool isFrontier = false;
-		PointList neighbors = getNeighbors(point, true);
+		PointList neighbors = getNeighbors(point, false);
 		for(PointList::iterator cell = neighbors.begin(); cell < neighbors.end(); cell++)
 		{
 			if(map->getData(*cell) == -1)
 			{
+                                plan.setData(*cell,2);
 				isFrontier = true;
-				continue;
+// 				continue;
+                                break;
 			}
 			if(map->getData(*cell) == 0 && plan.getData(*cell) == -1)
 			{
@@ -162,8 +164,6 @@ FrontierList Planner::getFrontiers(GridMap* map, GridPoint start)
 		{
 			result.push_back(getFrontier(map, &plan, point));
 		}
-		
-		if(mFrontierCount > 10) break;
 	}
 	
 	// Set result message and return the point list
@@ -181,13 +181,17 @@ FrontierList Planner::getFrontiers(GridMap* map, GridPoint start)
 
 PointList Planner::getFrontier(GridMap* map, GridMap* plan, GridPoint start)
 {
+    /**
+     * mark the cell as "already added to a frontier" by setting 
+     * the value in the plan to 2
+     */
 	PointList frontier;
 	mFrontierCount++;
 	
 	// Initialize the queue with the first frontier cell
 	Queue queue;
 	queue.insert(Entry(0, start));
-	plan->setData(start, mFrontierCount);
+	plan->setData(start, 2);
 	
 	// Do full search with weightless Dijkstra-Algorithm
 	while(!queue.empty())
@@ -206,10 +210,10 @@ PointList Planner::getFrontier(GridMap* map, GridMap* plan, GridPoint start)
 		PointList neighbors = getNeighbors(point, true);
 		for(PointList::iterator cell = neighbors.begin(); cell < neighbors.end(); cell++)
 		{
-			if(plan->getData(*cell) != mFrontierCount && isFrontierCell(map, *cell))
+			if(plan->getData(*cell) != 2 && isFrontierCell(map, *cell))
 			{
+				plan->setData(*cell, 2);
 				queue.insert(Entry(distance+1, *cell));
-				plan->setData(*cell, mFrontierCount);
 			}
 		}
 	}
@@ -383,7 +387,6 @@ Pose Planner::getCoverageTarget(Pose start)
 	startPoint.x = start.x;
 	startPoint.y = start.y;
 	PointList fCells = getFrontierCells(mCoverageMap, startPoint);
-//         GridPoint goalpt = getCheapest(fCells, start);
 	PointList::iterator p;
 	Pose target;
 	for(p = fCells.begin(); p < fCells.end(); p++)
@@ -399,15 +402,17 @@ Pose Planner::getCoverageTarget(Pose start)
 std::vector<base::samples::RigidBodyState> Planner::getCheapest(std::vector<base::Vector3d> &pts, Pose pose)
 {
 //      int resolution; //todo
-     double yaw, angularDistance;
+     double yaw;
      // check if robot-rotation is negative. if so, map it to 2*pi 
     if(pose.theta < 0)
     {
+//         std::cout << "RobotYaw is negative! mapping to 2*PI" << std::endl;
         yaw = 2*M_PI + pose.theta;
     } else { 
         yaw = pose.theta;
+//         std::cout << "RobotYaw is positive. No mapping" << std::endl;
     }
-     //std::cout << "RobotYaw is:  " << yaw << std::endl;
+//      std::cout << "(mapped) RobotYaw is:  " << yaw << std::endl;
      std::vector<std::pair<base::Vector3d, double> > listToBeSorted;
      listToBeSorted.reserve(pts.size());
      std::vector<base::samples::RigidBodyState> goals;
@@ -417,19 +422,22 @@ std::vector<base::samples::RigidBodyState> Planner::getCheapest(std::vector<base
      {
          //calculate angle of exploregoal-vector and map it to 0-2*pi radian
         double rotationOfPoint = atan2(i->y() - pose.y, i->x() - pose.x); 
+//         std::cout << "Rotation of point seems to be " << rotationOfPoint << std::endl;
         if(rotationOfPoint < 0) 
         {
-            rotationOfPoint = fmod(rotationOfPoint + 2*M_PI, 2*M_PI);
+            rotationOfPoint = 2*M_PI+rotationOfPoint;
+//             std::cout << "negative! so its mapped to 2*PI" << std::endl;
         }
         //calculate angular distance
-        angularDistance = fabs(yaw-rotationOfPoint);
-        if(fabs(yaw-rotationOfPoint) > M_PI)
+//         std::cout << "(mapped) rotation of Point is " <<  rotationOfPoint << std::endl;
+        double angularDistance = fabs(yaw-rotationOfPoint);
+        if(angularDistance > M_PI)
         {
-            angularDistance = 2*(M_PI - angularDistance);
+            angularDistance = 2*M_PI - angularDistance;
         }
         //add it to the list which will be sorted afterwards
         listToBeSorted.push_back(std::make_pair(*i, angularDistance));
-        //std::cout << "rotationOfPoint: " << i->x() << "/" << i->y() << " is " << rotationOfPoint << std::endl;
+//         std::cout << "final rotationOfPoint: " << i->x() << "/" << i->y() << " is " << rotationOfPoint << std::endl;
      }
      
      // Sorting list by comparing the angular differences. uses the given lambda-function 
@@ -442,6 +450,7 @@ std::vector<base::samples::RigidBodyState> Planner::getCheapest(std::vector<base
          base::samples::RigidBodyState targetPose;
          yaw += i->second;
          if(yaw > 2*M_PI){yaw = fmod(yaw, 2*M_PI);}
+//          std::cout << "Final results: Point " << i->first.x() << "/" << i->first.y() << " has angDifference of " << i->second << std::endl;
          targetPose.position = i->first;
          targetPose.orientation = Eigen::Quaterniond(Eigen::AngleAxisd(yaw, Eigen::Vector3d::UnitZ()));
          targetPose.targetFrame = "world";
@@ -451,9 +460,9 @@ std::vector<base::samples::RigidBodyState> Planner::getCheapest(std::vector<base
      
      if(goals.empty())
      {
-        std::cout << "did not find any target, propably stuck in an obstacle. Returning (0,0,0) as target." << std::endl;
-        //goals.push_back(base::Vector3d(0, 0, 0));
+        std::cout << "did not find any target, propably stuck in an obstacle." << std::endl;
      } 
+     
      return goals;
 }
 
