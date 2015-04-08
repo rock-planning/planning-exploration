@@ -3,6 +3,9 @@
 
 #include "Types.hpp"
 #include "../../../install/include/base/samples/RigidBodyState.hpp"
+#include "envire/Core.hpp"
+#include "envire/maps/MLSGrid.hpp"
+#include "envire/maps/TraversabilityGrid.hpp"
 
 namespace exploration
 {
@@ -39,8 +42,9 @@ namespace exploration
 		 *   1 : obstacle */
 		void setCoverageMap(PointList points, char value = 1);
 		
-		/** Cover all cells within sensor footprint from the given pose */
+		/** Cover all cells within sensor footprint from the given pose. Uses the 'willBeExplored' function */
 		void addReading(Pose p);
+                
 		
 		/** Get all cells that are still uncovered */
 		PointList getUnexploredCells();
@@ -63,6 +67,7 @@ namespace exploration
                 /**get the point with least angular difference to robotpose. Uses compare-function for sorting **/
                 std::vector<base::samples::RigidBodyState> getCheapest(std::vector<base::Vector3d> &pts, Pose pose);
 		
+                envire::TraversabilityGrid* mTraversability;
 	private:
 		PointList getNeighbors(GridPoint p, bool diagonal = false);
 		PointList getFrontier(GridMap* map, GridMap* plan, GridPoint start);
@@ -70,6 +75,9 @@ namespace exploration
 		bool pointInPolygon(FloatPoint point, Polygon polygon);
 		bool isVisible(FloatPoint point, Pose pose);
 		SensorField transformSensorField(Pose pose);
+                
+                /** returns all cells within the sensor footprint from the given pose */
+                PointList willBeExplored(Pose p);
 
 		Status mStatus;
 		char mStatusMessage[500];
@@ -79,6 +87,8 @@ namespace exploration
 		
 		GridMap* mCoverageMap;
 		SensorField mSensorField;
+                
+                
 	};
 }
 

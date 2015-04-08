@@ -16,12 +16,14 @@ typedef std::pair<int,GridPoint> Entry;
 Planner::Planner()
 {
 	mFrontierCellCount = 0;
-	mCoverageMap = NULL;
+	mCoverageMap = nullptr;
+        mTraversability = nullptr;
 }
 
 Planner::~Planner()
 {
 	if(mCoverageMap) delete mCoverageMap;
+        if(mTraversability) delete mTraversability;
 }
 
 PointList Planner::getNeighbors(GridPoint p, bool diagonal)
@@ -234,9 +236,11 @@ void Planner::initCoverageMap(GridMap* map)
 	for(unsigned int i = 0; i < size; i++)
 	{
 		if(origin[i] == 0)
-			mCoverageMap->setData(i, -1);
-		else
+			mCoverageMap->setData(i, 0);
+		else if(origin[i] == 1)
 			mCoverageMap->setData(i, 1);
+                else
+                        mCoverageMap->setData(i, -1);
 	}
 }
 
@@ -251,45 +255,58 @@ void Planner::setCoverageMap(PointList points, char value)
 
 void Planner::addReading(Pose p)
 {
-	// TODO: Transform SensorFields to Pose p
-	SensorField transformedSF = transformSensorField(p);
-	
-	// Rasterize transformed SensorField
-	SensorField::iterator sensor;
-	Polygon::iterator point;
-	FloatPoint min, max, current;
-	for(sensor = transformedSF.begin(); sensor < transformedSF.end(); sensor++)
-	{
-		// Determine bounding box for efficiency
-		min = max = *(sensor->begin());
-		for(point = sensor->begin()+1; point < sensor->end(); point++)
-		{
-			if(point->x < min.x) min.x = point->x;
-			if(point->x > max.x) max.x = point->x;
-			if(point->y < min.y) min.y = point->y;
-			if(point->y > max.y) max.y = point->y;
-		}
-		
-		// Rasterize polygon
-		for(int y = min.y; y <= max.y; y++)
-		{
-			for(int x = min.x; x <= max.x; x++)
-			{
-				current.x = x;
-				current.y = y;
-				GridPoint gp;
-				gp.x = x;
-				gp.y = y;
-				if(	mCoverageMap->getData(gp) == -1 && 
-					pointInPolygon(current, *sensor) && 
-					isVisible(current, p))
-				{
-					mCoverageMap->setData(gp, 0);
-				}
-			}
-		}
-	}
+    PointList points = willBeExplored(p);
+        for(PointList::iterator i = points.begin(); i < points.end(); ++i)
+        {
+            mCoverageMap->setData(*i, 0);
+        }
 }
+
+PointList Planner::willBeExplored(Pose p)
+{
+    // TODO: Transform SensorFields to Pose p
+    SensorField transformedSF = transformSensorField(p);
+    
+    // Rasterize transformed SensorField
+    SensorField::iterator sensor;
+    Polygon::iterator point;
+    FloatPoint min, max, current;
+    PointList result;
+    for(sensor = transformedSF.begin(); sensor < transformedSF.end(); sensor++)
+    {
+            // Determine bounding box for efficiency
+            min = max = *(sensor->begin());
+            for(point = sensor->begin()+1; point < sensor->end(); point++)
+            {
+                    if(point->x < min.x) min.x = point->x;
+                    if(point->x > max.x) max.x = point->x;
+                    if(point->y < min.y) min.y = point->y;
+                    if(point->y > max.y) max.y = point->y;
+            }
+//             result.reserve((max.x - min.x)*(max.y-min.y));
+            
+            // Rasterize polygon
+            for(int y = min.y; y <= max.y; y++)
+            {
+                    for(int x = min.x; x <= max.x; x++)
+                    {
+                            current.x = x;
+                            current.y = y;
+                            GridPoint gp;
+                            gp.x = x;
+                            gp.y = y;
+                            if(     mCoverageMap->getData(gp) == -1 && 
+                                    pointInPolygon(current, *sensor) && 
+                                    isVisible(current, p))
+                            {
+                                    result.push_back(gp);
+                            }
+                    }
+            }
+    }
+    return result;
+}
+
 
 // http://alienryderflex.com/polygon/
 bool Planner::pointInPolygon(FloatPoint point, Polygon polygon)
@@ -399,6 +416,8 @@ Pose Planner::getCoverageTarget(Pose start)
 	return target;
 }
 
+
+
 std::vector<base::samples::RigidBodyState> Planner::getCheapest(std::vector<base::Vector3d> &pts, Pose pose)
 {
 //      int resolution; //todo
@@ -406,55 +425,78 @@ std::vector<base::samples::RigidBodyState> Planner::getCheapest(std::vector<base
      // check if robot-rotation is negative. if so, map it to 2*pi 
     if(pose.theta < 0)
     {
-//         std::cout << "RobotYaw is negative! mapping to 2*PI" << std::endl;
         yaw = 2*M_PI + pose.theta;
     } else { 
         yaw = pose.theta;
-//         std::cout << "RobotYaw is positive. No mapping" << std::endl;
     }
-//      std::cout << "(mapped) RobotYaw is:  " << yaw << std::endl;
-     std::vector<std::pair<base::Vector3d, double> > listToBeSorted;
+     std::vector<std::tuple<base::samples::RigidBodyState, double, double> > listToBeSorted;
      listToBeSorted.reserve(pts.size());
      std::vector<base::samples::RigidBodyState> goals;
      goals.reserve(pts.size());
      
+     /**
+      * for-loop is used for calculating the angular differences
+      * experimental: dividing the number of cells that will be explored at the given point by the angDifference
+      * triple contains: (0) Point as Vector3d (1) angularDifference (2) cells that will be discovered divided by angDifference
+      */
      for(std::vector<base::Vector3d>::const_iterator i = pts.begin(); i != pts.end(); ++i)
      {
-         //calculate angle of exploregoal-vector and map it to 0-2*pi radian
+        //     calculate angle of exploregoal-vector and map it to 0-2*pi radian
         double rotationOfPoint = atan2(i->y() - pose.y, i->x() - pose.x); 
-//         std::cout << "Rotation of point seems to be " << rotationOfPoint << std::endl;
+        bool negative = false;
         if(rotationOfPoint < 0) 
         {
             rotationOfPoint = 2*M_PI+rotationOfPoint;
-//             std::cout << "negative! so its mapped to 2*PI" << std::endl;
+            negative = true;
         }
         //calculate angular distance
-//         std::cout << "(mapped) rotation of Point is " <<  rotationOfPoint << std::endl;
         double angularDistance = fabs(yaw-rotationOfPoint);
         if(angularDistance > M_PI)
         {
             angularDistance = 2*M_PI - angularDistance;
         }
-        //add it to the list which will be sorted afterwards
-        listToBeSorted.push_back(std::make_pair(*i, angularDistance));
-//         std::cout << "final rotationOfPoint: " << i->x() << "/" << i->y() << " is " << rotationOfPoint << std::endl;
+        
+        //transform point to grid since its necessary for willBeExplored
+        Pose givenPoint;
+        base::samples::RigidBodyState goalBodyState;
+        goalBodyState.position = Eigen::Vector3d(i->x(), i->y(), 0);
+        
+        size_t x, y;
+        if(mTraversability->toGrid(goalBodyState.position, x, y, mTraversability->getFrameNode()))
+        {
+            givenPoint.theta = yaw + angularDistance;
+            givenPoint.x = x; givenPoint.y = y;
+            if(givenPoint.theta > 2*M_PI)
+            {
+                givenPoint.theta = fmod(givenPoint.theta, 2*M_PI);
+            }
+        }
+        
+        goalBodyState.orientation = Eigen::Quaterniond(Eigen::AngleAxisd(givenPoint.theta, Eigen::Vector3d::UnitZ()));
+        
+        unsigned numberOfExploredCells = willBeExplored(givenPoint).size();
+//         std::cout << "numberOfExploredCells: " << numberOfExploredCells << std::endl;
+        if(numberOfExploredCells > 0)
+        {
+            double combinedRating = numberOfExploredCells / angularDistance;
+            //add it to the list which will be sorted afterwards
+            listToBeSorted.push_back(std::make_tuple(goalBodyState, numberOfExploredCells, combinedRating));
+        }
+        
      }
      
      // Sorting list by comparing the angular differences. uses the given lambda-function 
-     std::sort(listToBeSorted.begin(), listToBeSorted.end(), [](const std::pair<base::Vector3d, double>& i, const std::pair<base::Vector3d, double>& j) 
-     { return i.second < j.second; } );
+     std::sort(listToBeSorted.begin(), listToBeSorted.end(), [](const std::tuple<base::samples::RigidBodyState, double, double>& i, const std::tuple<base::samples::RigidBodyState, double, double>& j) 
+     /*{ return i.second < j.second; }*/ /*{ return i.second > j.second; }*/ { return std::get<2>(i) > std::get<2>(j); });
      
-     // copy the goalvectors of the sorted list of pairs into the std::vector that is going to be dumped on the port
-     for(std::vector<std::pair<base::Vector3d, double> >::const_iterator i = listToBeSorted.begin(); i != listToBeSorted.end(); ++i)
+     // copy the goalvectors of the sorted list of triples into the std::vector that is going to be dumped on the port
+     for(std::vector<std::tuple<base::samples::RigidBodyState, double, double> >::const_iterator i = listToBeSorted.begin(); i != listToBeSorted.end(); ++i)
      {
-         base::samples::RigidBodyState targetPose;
-         yaw += i->second;
-         if(yaw > 2*M_PI){yaw = fmod(yaw, 2*M_PI);}
-//          std::cout << "Final results: Point " << i->first.x() << "/" << i->first.y() << " has angDifference of " << i->second << std::endl;
-         targetPose.position = i->first;
-         targetPose.orientation = Eigen::Quaterniond(Eigen::AngleAxisd(yaw, Eigen::Vector3d::UnitZ()));
+         base::samples::RigidBodyState targetPose = std::get<0>(*i);
+
          targetPose.targetFrame = "world";
          targetPose.time = base::Time::now();
+         std::cout << "pushed point: " << targetPose.position.x() << "/" << targetPose.position.y() << " with rating: " << std::get<2>(*i) << " . Number of explored Cells: " << std::get<1>(*i) << std::endl;
          goals.push_back(targetPose);
      }
      
