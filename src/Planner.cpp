@@ -418,18 +418,20 @@ Pose Planner::getCoverageTarget(Pose start)
 
 
 
-std::vector<base::samples::RigidBodyState> Planner::getCheapest(std::vector<base::Vector3d> &pts, Pose pose)
+std::vector<base::samples::RigidBodyState> Planner::getCheapest(std::vector<base::Vector3d> &pts, base::samples::RigidBodyState &roboPose)
 {
 //      int resolution; //todo
      double yaw;
      // check if robot-rotation is negative. if so, map it to 2*pi 
-    if(pose.theta < 0)
+    if(roboPose.getYaw() < 0)
     {
-        yaw = 2*M_PI + pose.theta;
+        yaw = 2*M_PI + roboPose.getYaw();
     } else { 
-        yaw = pose.theta;
+        yaw = roboPose.getYaw();
     }
-     std::vector<std::tuple<base::samples::RigidBodyState, double, double> > listToBeSorted;
+    std::cout << "yaw is: " << yaw << std::endl;
+    
+     std::vector<std::tuple<base::samples::RigidBodyState, double, double, double, double> > listToBeSorted;
      listToBeSorted.reserve(pts.size());
      std::vector<base::samples::RigidBodyState> goals;
      goals.reserve(pts.size());
@@ -437,18 +439,19 @@ std::vector<base::samples::RigidBodyState> Planner::getCheapest(std::vector<base
      /**
       * for-loop is used for calculating the angular differences
       * experimental: dividing the number of cells that will be explored at the given point by the angDifference
-      * triple contains: (0) Point as Vector3d (1) angularDifference (2) cells that will be discovered divided by angDifference
       */
      for(std::vector<base::Vector3d>::const_iterator i = pts.begin(); i != pts.end(); ++i)
      {
         //     calculate angle of exploregoal-vector and map it to 0-2*pi radian
-        double rotationOfPoint = atan2(i->y() - pose.y, i->x() - pose.x); 
-        bool negative = false;
+        double rotationOfPoint = atan2(i->y() - roboPose.position.y(), i->x() - roboPose.position.x()); 
+        if(rotationOfPoint > 2*M_PI)
+        {
+            rotationOfPoint = fmod(rotationOfPoint, 2*M_PI);
+        }
         if(rotationOfPoint < 0) 
         {
             rotationOfPoint = 2*M_PI+rotationOfPoint;
-            negative = true;
-        }
+        } 
         //calculate angular distance
         double angularDistance = fabs(yaw-rotationOfPoint);
         if(angularDistance > M_PI)
@@ -456,47 +459,56 @@ std::vector<base::samples::RigidBodyState> Planner::getCheapest(std::vector<base
             angularDistance = 2*M_PI - angularDistance;
         }
         
-        //transform point to grid since its necessary for willBeExplored
         Pose givenPoint;
+        //turn Vector3d into a RigidBodyState that finally will be pushed into the list of results
         base::samples::RigidBodyState goalBodyState;
-        goalBodyState.position = Eigen::Vector3d(i->x(), i->y(), 0);
+        goalBodyState.position = *i;
         
+        //transform point to grid since its necessary for willBeExplored
         size_t x, y;
         if(mTraversability->toGrid(goalBodyState.position, x, y, mTraversability->getFrameNode()))
         {
-            givenPoint.theta = yaw + angularDistance;
+//             givenPoint.theta = yaw + angularDistance;
+            
+            givenPoint.theta = rotationOfPoint;
             givenPoint.x = x; givenPoint.y = y;
-            if(givenPoint.theta > 2*M_PI)
-            {
-                givenPoint.theta = fmod(givenPoint.theta, 2*M_PI);
-            }
+//             if(givenPoint.theta > 2*M_PI)
+//             {
+//                 givenPoint.theta = fmod(givenPoint.theta, 2*M_PI);
+//             }
         }
         
         goalBodyState.orientation = Eigen::Quaterniond(Eigen::AngleAxisd(givenPoint.theta, Eigen::Vector3d::UnitZ()));
         
         unsigned numberOfExploredCells = willBeExplored(givenPoint).size();
-//         std::cout << "numberOfExploredCells: " << numberOfExploredCells << std::endl;
         if(numberOfExploredCells > 0)
         {
-            double combinedRating = numberOfExploredCells / angularDistance;
-            //add it to the list which will be sorted afterwards
-            listToBeSorted.push_back(std::make_tuple(goalBodyState, numberOfExploredCells, combinedRating));
+            // calculate the distance between the robot and the goalPose. necessary for evaluation of goalPose
+            double robotToPointDistance = (goalBodyState.position - base::Vector3d(roboPose.position.x(), roboPose.position.y(), 0)).norm();
+            
+            /***
+             * final rating of goalPose
+             */
+            double combinedRating = numberOfExploredCells / angularDistance / robotToPointDistance;
+            
+            //add it to the list which will be sorted afterwards. 2nd, 3rd... entry is for "debugging"
+            listToBeSorted.push_back(std::make_tuple(goalBodyState, combinedRating, numberOfExploredCells, angularDistance, robotToPointDistance));
         }
         
      }
      
      // Sorting list by comparing the angular differences. uses the given lambda-function 
-     std::sort(listToBeSorted.begin(), listToBeSorted.end(), [](const std::tuple<base::samples::RigidBodyState, double, double>& i, const std::tuple<base::samples::RigidBodyState, double, double>& j) 
-     /*{ return i.second < j.second; }*/ /*{ return i.second > j.second; }*/ { return std::get<2>(i) > std::get<2>(j); });
+     std::sort(listToBeSorted.begin(), listToBeSorted.end(), [](const std::tuple<base::samples::RigidBodyState, double, double, double, double>& i, const std::tuple<base::samples::RigidBodyState, double, double, double, double>& j) 
+        { return std::get<1>(i) > std::get<1>(j); });
      
      // copy the goalvectors of the sorted list of triples into the std::vector that is going to be dumped on the port
-     for(std::vector<std::tuple<base::samples::RigidBodyState, double, double> >::const_iterator i = listToBeSorted.begin(); i != listToBeSorted.end(); ++i)
+     for(std::vector<std::tuple<base::samples::RigidBodyState, double, double,  double, double> >::const_iterator i = listToBeSorted.begin(); i != listToBeSorted.end(); ++i)
      {
          base::samples::RigidBodyState targetPose = std::get<0>(*i);
 
          targetPose.targetFrame = "world";
          targetPose.time = base::Time::now();
-         std::cout << "pushed point: " << targetPose.position.x() << "/" << targetPose.position.y() << " with rating: " << std::get<2>(*i) << " . Number of explored Cells: " << std::get<1>(*i) << std::endl;
+         std::cout << "pushed point: " << targetPose.position.x() << "/" << targetPose.position.y() << " with rating: " << std::get<1>(*i) << " . Cells: " << std::get<2>(*i) << " . AngDistance: " << std::get<3>(*i) << " . Distance: " << std::get<4>(*i) << std::endl;
          goals.push_back(targetPose);
      }
      

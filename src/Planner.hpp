@@ -65,7 +65,7 @@ namespace exploration
                 const GridMap& getCoverageMap() const;
                 
                 /**get the point with least angular difference to robotpose. Uses compare-function for sorting **/
-                std::vector<base::samples::RigidBodyState> getCheapest(std::vector<base::Vector3d> &pts, Pose pose);
+                std::vector<base::samples::RigidBodyState> getCheapest(std::vector<base::Vector3d> &pts, base::samples::RigidBodyState &robotPose);
 		
                 envire::TraversabilityGrid* mTraversability;
 	private:
