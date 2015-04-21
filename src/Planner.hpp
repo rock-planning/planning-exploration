@@ -1,7 +1,7 @@
 #ifndef EXPLORATION_EXPLORATION_PLANNER_H
 #define EXPLORATION_EXPLORATION_PLANNER_H
 
-#include "Types.hpp"
+#include "ExplorationPlannerTypes.hpp"
 #include "../../../install/include/base/samples/RigidBodyState.hpp"
 #include "envire/Core.hpp"
 #include "envire/maps/MLSGrid.hpp"
@@ -64,6 +64,10 @@ namespace exploration
                 
                 const GridMap& getCoverageMap() const;
                 
+                void setMinGoalDistance(double value) {min_goal_distance = value;}
+                
+                double getMinGoalDistance() {return min_goal_distance;}
+                
                 /**get the point with least angular difference to robotpose. Uses compare-function for sorting **/
                 std::vector<base::samples::RigidBodyState> getCheapest(std::vector<base::Vector3d> &pts, base::samples::RigidBodyState &robotPose);
 		
@@ -88,7 +92,7 @@ namespace exploration
 		GridMap* mCoverageMap;
 		SensorField mSensorField;
                 
-                
+                double min_goal_distance;
 	};
 }
 

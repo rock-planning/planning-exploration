@@ -25,6 +25,12 @@ namespace exploration
 		double y;
 		double theta;
 	};
+        
+        //used since std::vector<std::vector<FloatPoint>> doesn't seem to work with oroGen configs
+        struct ConfPolygon
+        {
+                std::vector<FloatPoint> points;
+        };
 
 	typedef std::vector<GridPoint> PointList;
 	typedef std::vector<PointList> FrontierList;

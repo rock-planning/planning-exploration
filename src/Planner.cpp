@@ -463,6 +463,9 @@ std::vector<base::samples::RigidBodyState> Planner::getCheapest(std::vector<base
         //turn Vector3d into a RigidBodyState that finally will be pushed into the list of results
         base::samples::RigidBodyState goalBodyState;
         goalBodyState.position = *i;
+        // calculate the distance between the robot and the goalPose. necessary for evaluation of goalPose
+        double robotToPointDistance = (goalBodyState.position - base::Vector3d(roboPose.position.x(), roboPose.position.y(), 0)).norm();
+        if(robotToPointDistance < min_goal_distance) continue;
         
         //transform point to grid since its necessary for willBeExplored
         size_t x, y;
@@ -483,13 +486,11 @@ std::vector<base::samples::RigidBodyState> Planner::getCheapest(std::vector<base
         unsigned numberOfExploredCells = willBeExplored(givenPoint).size();
         if(numberOfExploredCells > 0)
         {
-            // calculate the distance between the robot and the goalPose. necessary for evaluation of goalPose
-            double robotToPointDistance = (goalBodyState.position - base::Vector3d(roboPose.position.x(), roboPose.position.y(), 0)).norm();
             
             /***
              * final rating of goalPose
              */
-            double combinedRating = numberOfExploredCells / angularDistance / robotToPointDistance;
+            double combinedRating = numberOfExploredCells / (angularDistance+1) / robotToPointDistance;
             
             //add it to the list which will be sorted afterwards. 2nd, 3rd... entry is for "debugging"
             listToBeSorted.push_back(std::make_tuple(goalBodyState, combinedRating, numberOfExploredCells, angularDistance, robotToPointDistance));
