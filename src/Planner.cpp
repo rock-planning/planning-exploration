@@ -6,6 +6,7 @@
 #include <math.h>
 #include <algorithm> // sort
 #include <boost/concept_check.hpp>
+#include <base/Logging.hpp>
 
 using namespace exploration;
 
@@ -26,7 +27,7 @@ Planner::~Planner()
         if(mTraversability) delete mTraversability;
 }
 
-PointList Planner::getNeighbors(GridPoint p, bool diagonal)
+PointList Planner::getNeighbors(GridPoint p, bool diagonal) const
 {
 	PointList neighbors;
 	GridPoint n;
@@ -46,13 +47,13 @@ PointList Planner::getNeighbors(GridPoint p, bool diagonal)
 	return neighbors;
 }
 
-bool Planner::isFrontierCell(GridMap* map, GridPoint point)
+bool Planner::isFrontierCell(GridMap* map, GridPoint point) const
 {
 	if(map->getData(point) != 0)
 		return false;
 		
 	PointList neighbors = getNeighbors(point, true);
-	for(PointList::iterator cell = neighbors.begin(); cell < neighbors.end(); cell++)
+	for(PointList::const_iterator cell = neighbors.begin(); cell < neighbors.end(); cell++)
 		if(map->getData(*cell) == -1)
 			return true;
 
@@ -83,7 +84,7 @@ PointList Planner::getFrontierCells(GridMap* map, GridPoint start, bool stopAtFi
 		
 		// Add all adjacent cells
 		PointList neighbors = getNeighbors(point);
-		for(PointList::iterator cell = neighbors.begin(); cell < neighbors.end(); cell++)
+		for(PointList::const_iterator cell = neighbors.begin(); cell < neighbors.end(); cell++)
 		{
 			if(map->getData(*cell) == -1)
 			{
@@ -146,7 +147,7 @@ FrontierList Planner::getFrontiers(GridMap* map, GridPoint start)
 		// Add neighbors
 		bool isFrontier = false;
 		PointList neighbors = getNeighbors(point, false);
-		for(PointList::iterator cell = neighbors.begin(); cell < neighbors.end(); cell++)
+		for(PointList::const_iterator cell = neighbors.begin(); cell < neighbors.end(); cell++)
 		{
 			if(map->getData(*cell) == -1)
 			{
@@ -210,7 +211,7 @@ PointList Planner::getFrontier(GridMap* map, GridMap* plan, GridPoint start)
 		
 		// Add all adjacent frontier cells to the queue
 		PointList neighbors = getNeighbors(point, true);
-		for(PointList::iterator cell = neighbors.begin(); cell < neighbors.end(); cell++)
+		for(PointList::const_iterator cell = neighbors.begin(); cell < neighbors.end(); cell++)
 		{
 			if(plan->getData(*cell) != 2 && isFrontierCell(map, *cell))
 			{
@@ -309,7 +310,7 @@ PointList Planner::willBeExplored(Pose p)
 
 
 // http://alienryderflex.com/polygon/
-bool Planner::pointInPolygon(FloatPoint point, Polygon polygon)
+bool Planner::pointInPolygon(FloatPoint point, Polygon polygon) const
 {
 	int   j = polygon.size() - 1;
 	bool  oddNodes = false;
@@ -329,7 +330,7 @@ bool Planner::pointInPolygon(FloatPoint point, Polygon polygon)
 	return oddNodes;
 }
 
-bool Planner::isVisible(FloatPoint point, Pose pose)
+bool Planner::isVisible(FloatPoint point, Pose pose) const
 {
 	double x = pose.x;
 	double y = pose.y;
@@ -357,7 +358,7 @@ bool Planner::isVisible(FloatPoint point, Pose pose)
 
 SensorField Planner::transformSensorField(Pose pose)
 {
-	SensorField::iterator sensor;
+	SensorField::const_iterator sensor;
 	SensorField field;
 	for(sensor = mSensorField.begin(); sensor < mSensorField.end(); sensor++)
 	{
@@ -379,7 +380,7 @@ Polygon Planner::transformPolygon(Polygon polygon, Pose pose)
 	return polygon;
 }
 
-PointList Planner::getUnexploredCells()
+PointList Planner::getUnexploredCells() const
 {
 	PointList result;
 	GridPoint p;
@@ -404,13 +405,13 @@ Pose Planner::getCoverageTarget(Pose start)
 	startPoint.x = start.x;
 	startPoint.y = start.y;
 	PointList fCells = getFrontierCells(mCoverageMap, startPoint);
-	PointList::iterator p;
+	PointList::const_iterator p;
 	Pose target;
 	for(p = fCells.begin(); p < fCells.end(); p++)
 	{
 		target.x = p->x;
 		target.y = p->y;
-                //std::cout << "possible goals: " << target.x << "/" << target.y << std::endl;
+                LOG_DEBUG_S << "possible goals: " << target.x << "/" << target.y;
 		if(p->distance > 20 && p->distance < 30) break;
 	}
 	return target;
@@ -429,7 +430,7 @@ std::vector<base::samples::RigidBodyState> Planner::getCheapest(std::vector<base
     } else { 
         yaw = roboPose.getYaw();
     }
-    std::cout << "yaw is: " << yaw << std::endl;
+    LOG_DEBUG_S << "yaw is: " << yaw;
     
      std::vector<std::tuple<base::samples::RigidBodyState, double, double, double, double> > listToBeSorted;
      listToBeSorted.reserve(pts.size());
@@ -509,13 +510,13 @@ std::vector<base::samples::RigidBodyState> Planner::getCheapest(std::vector<base
 
          targetPose.targetFrame = "world";
          targetPose.time = base::Time::now();
-         std::cout << "pushed point: " << targetPose.position.x() << "/" << targetPose.position.y() << " with rating: " << std::get<1>(*i) << " . Cells: " << std::get<2>(*i) << " . AngDistance: " << std::get<3>(*i) << " . Distance: " << std::get<4>(*i) << std::endl;
+         LOG_DEBUG_S << "pushed point: " << targetPose.position.x() << "/" << targetPose.position.y() << " with rating: " << std::get<1>(*i) << " . Cells: " << std::get<2>(*i) << " . AngDistance: " << std::get<3>(*i) << " . Distance: " << std::get<4>(*i);
          goals.push_back(targetPose);
      }
      
      if(goals.empty())
      {
-        std::cout << "did not find any target, propably stuck in an obstacle." << std::endl;
+        LOG_WARN_S << "did not find any target, propably stuck in an obstacle.";
      } 
      
      return goals;
