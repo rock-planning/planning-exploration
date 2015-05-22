@@ -1,11 +1,11 @@
 #ifndef EXPLORATION_EXPLORATION_PLANNER_H
 #define EXPLORATION_EXPLORATION_PLANNER_H
 
-#include "ExplorationPlannerTypes.hpp"
-#include "../../../install/include/base/samples/RigidBodyState.hpp"
-#include "envire/Core.hpp"
-#include "envire/maps/MLSGrid.hpp"
-#include "envire/maps/TraversabilityGrid.hpp"
+#include <exploration/ExplorationPlannerTypes.hpp>
+#include <base/samples/RigidBodyState.hpp>
+#include <envire/Core.hpp>
+#include <envire/maps/MLSGrid.hpp>
+#include <envire/maps/TraversabilityGrid.hpp>
 
 namespace exploration
 {
@@ -18,10 +18,10 @@ namespace exploration
 		enum Status {SUCCESS, NO_GOAL, ERROR, NOT_IMPLEMENTED};
 		
 		/** Returns the result of the last operation */
-		Status getStatus() {return mStatus;}
+		Status getStatus() const {return mStatus;}
 		
 		/** Returns the result message of the last operation */
-		char* getStatusMessage() {return mStatusMessage;}
+		const char* getStatusMessage() const {return mStatusMessage;}
 		
 		/** Returns a list of reachable frontier cells ordered by distance to 'start' */
 		PointList getFrontierCells(GridMap* map, GridPoint start, bool stopAtFirst = false);
@@ -30,7 +30,7 @@ namespace exploration
 		FrontierList getFrontiers(GridMap* map, GridPoint start);
 		
 		/** Returns the number of reachable frontier cells after detection */
-		unsigned int getFrontierCellCount() {return mFrontierCellCount;}
+		unsigned int getFrontierCellCount() const {return mFrontierCellCount;}
 		
 		/** Initializes a new coverage map from a given grid map
 		 *  All cells marked 'free' in the map are marked 'uncovered' in the coverage map */
@@ -47,7 +47,7 @@ namespace exploration
                 
 		
 		/** Get all cells that are still uncovered */
-		PointList getUnexploredCells();
+		PointList getUnexploredCells() const;
 		
 		/** Add a sensor footprint to the internal sensor field */
 		void addSensor(Polygon p) {mSensorField.push_back(p);}
@@ -66,18 +66,18 @@ namespace exploration
                 
                 void setMinGoalDistance(double value) {min_goal_distance = value;}
                 
-                double getMinGoalDistance() {return min_goal_distance;}
+                double getMinGoalDistance() const {return min_goal_distance;}
                 
                 /**get the point with least angular difference to robotpose. Uses compare-function for sorting **/
                 std::vector<base::samples::RigidBodyState> getCheapest(std::vector<base::Vector3d> &pts, base::samples::RigidBodyState &robotPose);
 		
                 envire::TraversabilityGrid* mTraversability;
 	private:
-		PointList getNeighbors(GridPoint p, bool diagonal = false);
+		PointList getNeighbors(GridPoint p, bool diagonal = false) const;
 		PointList getFrontier(GridMap* map, GridMap* plan, GridPoint start);
-		bool isFrontierCell(GridMap* map, GridPoint point);
-		bool pointInPolygon(FloatPoint point, Polygon polygon);
-		bool isVisible(FloatPoint point, Pose pose);
+		bool isFrontierCell(GridMap* map, GridPoint point) const;
+		bool pointInPolygon(FloatPoint point, Polygon polygon) const;
+		bool isVisible(FloatPoint point, Pose pose) const;
 		SensorField transformSensorField(Pose pose);
                 
                 /** returns all cells within the sensor footprint from the given pose */
