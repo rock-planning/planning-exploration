@@ -16,6 +16,8 @@ namespace exploration
 		~Planner();
 
 		enum Status {SUCCESS, NO_GOAL, ERROR, NOT_IMPLEMENTED};
+                
+                enum DrivabilityClasses { OBSTACLE = 2, EXPLORED, UNKNOWN };
 		
 		/** Returns the result of the last operation */
 		Status getStatus() {return mStatus;}
@@ -71,7 +73,15 @@ namespace exploration
                 /**get the point with least angular difference to robotpose. Uses compare-function for sorting **/
                 std::vector<base::samples::RigidBodyState> getCheapest(std::vector<base::Vector3d> &pts, base::samples::RigidBodyState &robotPose);
 		
+                /**contains extracted travGrid **/
                 envire::TraversabilityGrid* mTraversability;
+                
+                /**copy of exploremap as TravGrid. Used if the GridMap needs to be resized, thus transformed**/
+                envire::TraversabilityGrid* mCoverageMapAsTravGrid;
+                
+                /**takes a GridMap and turns it into a TraversabilityGrid with the attributes of the given TravGrid**/
+                envire::TraversabilityGrid* coverageMapToTravGrid(const GridMap& mapToBeTranslated, envire::TraversabilityGrid& traversability);
+       
 	private:
 		PointList getNeighbors(GridPoint p, bool diagonal = false);
 		PointList getFrontier(GridMap* map, GridMap* plan, GridPoint start);

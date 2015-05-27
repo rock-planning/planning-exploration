@@ -534,3 +534,47 @@ const exploration::GridMap& Planner::getCoverageMap() const
     return *mCoverageMap;
 }
 
+envire::TraversabilityGrid* Planner::coverageMapToTravGrid(const GridMap& mapToBeTranslated, envire::TraversabilityGrid& traversability)
+{
+            //initializing exploreMap that is going to be dumped
+        envire::TraversabilityGrid *exploreMap = new envire::TraversabilityGrid(traversability.getWidth(), traversability.getHeight(), traversability.getScaleX(), traversability.getScaleY(), traversability.getOffsetX(), traversability.getOffsetY());
+        exploreMap->setTraversabilityClass(OBSTACLE, envire::TraversabilityClass (0.0)); //obstacle
+        exploreMap->setTraversabilityClass(EXPLORED, envire::TraversabilityClass (1.0)); //explored
+        exploreMap->setTraversabilityClass(UNKNOWN, envire::TraversabilityClass (0.5)); //unknown
+        
+        envire::TraversabilityGrid::ArrayType& exp_array = exploreMap->getGridData();
+        
+        const GridMap &map(mapToBeTranslated);
+        
+        size_t xiExplo = traversability.getCellSizeX();
+        size_t yiExplo = traversability.getCellSizeY();
+//      std::cout << "Output map size " << xiExplo << " " << yiExplo << std::endl;
+        struct GridPoint pointExplo;
+        
+        for(size_t y = 0; y < yiExplo; y++){
+            pointExplo.y = y;
+            for (size_t x = 0; x < xiExplo; x++){
+                pointExplo.x = x;
+                int value = map.getData(pointExplo);
+                exploreMap->setProbability(1.0, x, y);
+                //std::cout << "value at OUTPUTMAP point " << pointExplo.x << "/" << pointExplo.y << " is     " << value << std::endl;
+                switch(value)
+                {
+                    case -1:
+                        exp_array[y][x] = UNKNOWN;
+                        break;
+                    case 0:
+                        exp_array[y][x] = EXPLORED;
+                        //std::cout << "explored, set status to " << (int)envire::SimpleTraversability::CUSTOM_CLASSES + 5 << std::endl;
+                        break;
+                    case 1:
+                        exp_array[y][x] = OBSTACLE;
+                        //std::cout << "OBSTACLE, set status to " << (int)envire::SimpleTraversability::CLASS_OBSTACLE << std::endl;
+                        break;
+                    default:
+                        break;
+                }
+            }
+        }
+        return exploreMap;
+}
