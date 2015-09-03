@@ -8,16 +8,12 @@
 #include <envire/maps/TraversabilityGrid.hpp>
 
 namespace exploration
-{
+{    
 	class Planner
 	{
 	public:
 		Planner();
 		~Planner();
-
-		enum Status {SUCCESS, NO_GOAL, ERROR, NOT_IMPLEMENTED};
-                
-                enum DrivabilityClasses { OBSTACLE = 2, EXPLORED, UNKNOWN };
 		
 		/** Returns the result of the last operation */
 		Status getStatus() const {return mStatus;}
@@ -64,23 +60,23 @@ namespace exploration
 		 * Currently returns nearest frontier cell in coverage map */
 		Pose getCoverageTarget(Pose start);
                 
-                const GridMap& getCoverageMap() const;
-                
-                void setMinGoalDistance(double value) {min_goal_distance = value;}
-                
-                double getMinGoalDistance() const {return min_goal_distance;}
-                
-                /**get the point with least angular difference to robotpose. Uses compare-function for sorting **/
-                std::vector<base::samples::RigidBodyState> getCheapest(std::vector<base::Vector3d> &pts, base::samples::RigidBodyState &robotPose);
-		
-                /**contains extracted travGrid **/
-                envire::TraversabilityGrid* mTraversability;
-                
-                /**copy of exploremap as TravGrid. Used if the GridMap needs to be resized, thus transformed**/
-                envire::TraversabilityGrid* mCoverageMapAsTravGrid;
-                
-                /**takes a GridMap and turns it into a TraversabilityGrid with the attributes of the given TravGrid**/
-                envire::TraversabilityGrid* coverageMapToTravGrid(const GridMap& mapToBeTranslated, envire::TraversabilityGrid& traversability);
+        const GridMap& getCoverageMap() const;
+
+        void setMinGoalDistance(double value) {min_goal_distance = value;}
+
+        double getMinGoalDistance() const {return min_goal_distance;}
+
+        /**get the point with least angular difference to robotpose. Uses compare-function for sorting **/
+        std::vector<base::samples::RigidBodyState> getCheapest(std::vector<base::Vector3d> &pts, base::samples::RigidBodyState &robotPose);
+
+        /**contains extracted travGrid **/
+        envire::TraversabilityGrid* mTraversability;
+
+        /**copy of exploremap as TravGrid. Used if the GridMap needs to be resized, thus transformed**/
+        envire::TraversabilityGrid* mCoverageMapAsTravGrid;
+
+        /**takes a GridMap and turns it into a TraversabilityGrid with the attributes of the given TravGrid**/
+        envire::TraversabilityGrid* coverageMapToTravGrid(const GridMap& mapToBeTranslated, envire::TraversabilityGrid& traversability);
        
 	private:
 		PointList getNeighbors(GridPoint p, bool diagonal = false) const;
@@ -90,8 +86,8 @@ namespace exploration
 		bool isVisible(FloatPoint point, Pose pose) const;
 		SensorField transformSensorField(Pose pose);
                 
-                /** returns all cells within the sensor footprint from the given pose */
-                PointList willBeExplored(Pose p);
+        /** returns all cells within the sensor footprint from the given pose */
+        PointList willBeExplored(Pose p);
 
 		Status mStatus;
 		char mStatusMessage[500];
@@ -102,7 +98,7 @@ namespace exploration
 		GridMap* mCoverageMap;
 		SensorField mSensorField;
                 
-                double min_goal_distance;
+        double min_goal_distance;
 	};
 }
 

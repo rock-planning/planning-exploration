@@ -6,31 +6,46 @@
 
 namespace exploration
 {	
+    enum Status {SUCCESS, NO_GOAL, ERROR, NOT_IMPLEMENTED};            
+    enum DrivabilityClasses {VISIBLE, OBSTACLE = 2, EXPLORED, UNKNOWN };
+    
 	struct GridPoint
 	{
-		unsigned int x;
-		unsigned int y;
+        GridPoint() : x(0), y(0), distance(0) {
+        }
+        
+        GridPoint(int x_, int y_, int distance_) : x(x_), y(y_), distance(distance_) {
+        }
+        
+		int x;
+		int y;
 		int distance;
 	};
 
 	struct FloatPoint
 	{
+        FloatPoint() : x(0.0), y(0.0) {
+        }
+        
 		double x;
 		double y;
 	};
 
 	struct Pose
 	{
+        Pose() : x(0.0), y(0.0), theta(0.0) {
+        }
+        
 		double x;
 		double y;
 		double theta;
 	};
         
-        //used since std::vector<std::vector<FloatPoint>> doesn't seem to work with oroGen configs
-        struct ConfPolygon
-        {
-                std::vector<FloatPoint> points;
-        };
+    //used since std::vector<std::vector<FloatPoint>> doesn't seem to work with oroGen configs
+    struct ConfPolygon
+    {
+        std::vector<FloatPoint> points;
+    };
 
 	typedef std::vector<GridPoint> PointList;
 	typedef std::vector<PointList> FrontierList;
@@ -44,8 +59,8 @@ namespace exploration
 		{
 			width = w;
 			height = h;
-			data = new char[w*h];
-			for(unsigned int i = 0; i < w*h; i++) data[i] = -1;
+			data = (char*)calloc(w*h, sizeof(char));
+            memset(data, UNKNOWN, sizeof(char)*w*h);
 			isAllocated = true;
 		}
 
@@ -62,31 +77,46 @@ namespace exploration
 			if(isAllocated) delete[] data;
 		}
 
-		char getData(GridPoint p) const
+		bool getData(GridPoint p, char& c) const
 		{
-			if(p.x >= width || p.y >= height)
-				return -1;
-			else
-				return data[(p.y*width)+p.x];
+			if(p.x < 0 || p.y < 0 || p.x >= (int)width || p.y >= (int)height)
+				return false;
+			else {
+				c = data[(p.y*width)+p.x];
+                return true;
+            }
 		}
 
 		bool setData(GridPoint p, char v)
 		{
-			if(!isAllocated || p.x >= width || p.y >= height) return false;
+			if(!isAllocated || p.x < 0 || p.y < 0 || 
+                    p.x >= (int)width || p.y >= (int)height) {
+                return false;
+            }
 			data[(p.y*width)+p.x] = v;
 			return true;
 		}
 
-		char* getData() {return data;}
+		char* getData() {
+            return data;
+        }
+        
 		bool setData(unsigned int index, char v)
 		{
-			if(!isAllocated || index >= width * height) return false;
+			if(!isAllocated || index >= width * height) {
+                return false;
+            }
 			data[index] = v;
 			return true;
 		}
 		
-		unsigned int getWidth() const {return width;}
-		unsigned int getHeight() const {return height;}
+		unsigned int getWidth() const {
+            return width;
+        }
+        
+		unsigned int getHeight() const {
+            return height;
+        }
 
 	private:
 		char* data;
