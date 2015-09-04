@@ -66,8 +66,18 @@ namespace exploration
 
         double getMinGoalDistance() const {return min_goal_distance;}
 
-        /**get the point with least angular difference to robotpose. Uses compare-function for sorting **/
-        std::vector<base::samples::RigidBodyState> getCheapest(std::vector<base::Vector3d> &pts, base::samples::RigidBodyState &robotPose);
+        /**
+         * Get the point with least angular difference to robotpose. Uses compare-function for sorting.
+         * If calculate_worst_driveability is set to true the robot length and with have to be specified as well.
+         * In this case obstacle poses are ignored and the worst driveability is used
+         * within the cost calculations.
+         * \param robotPose Expects local coordinates in meter.
+         */
+        std::vector<base::samples::RigidBodyState> getCheapest(std::vector<base::Vector3d> &pts, 
+                base::samples::RigidBodyState &robotPose,
+                bool calculate_worst_driveability = false,
+                double robot_length_x = 0,
+                double robot_width_y = 0);
 
         /**contains extracted travGrid **/
         envire::TraversabilityGrid* mTraversability;
@@ -99,6 +109,11 @@ namespace exploration
 		SensorField mSensorField;
                 
         double min_goal_distance;
+        
+        /**
+         * Maps the passed angle to [0, 2*PI)
+         */
+        double map0to2pi(double angle_rad);
 	};
 }
 

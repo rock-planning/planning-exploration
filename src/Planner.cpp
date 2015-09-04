@@ -17,8 +17,10 @@ typedef std::pair<int,GridPoint> Entry;
 Planner::Planner()
 {
     mFrontierCellCount = 0;
+    mFrontierCount = 0;
     mCoverageMap = nullptr;
     mTraversability = nullptr;
+    min_goal_distance = 0;
 }
 
 Planner::~Planner()
@@ -192,10 +194,8 @@ FrontierList Planner::getFrontiers(GridMap* map, GridPoint start)
 
 PointList Planner::getFrontier(GridMap* map, GridMap* plan, GridPoint start)
 {
-    /**
-     * mark the cell as "already added to a frontier" by setting 
-     * the value in the plan to 2
-     */
+     // Mark the cell as "already added to a frontier" by setting 
+     // the value in the plan to 2.
 	PointList frontier;
 	mFrontierCount++;
 	
@@ -419,52 +419,50 @@ Pose Planner::getCoverageTarget(Pose start)
 	return target;
 }
 
-std::vector<base::samples::RigidBodyState> Planner::getCheapest(std::vector<base::Vector3d> &pts, base::samples::RigidBodyState &roboPose)
-{
-     double yaw;
-     // If the robot-orientatin is negative it will be mapped to 2*pi 
-    if(roboPose.getYaw() < 0)
-    {
-        yaw = 2*M_PI + roboPose.getYaw();
-    } else { 
-        yaw = roboPose.getYaw();
+std::vector<base::samples::RigidBodyState> Planner::getCheapest(std::vector<base::Vector3d> &pts, 
+        base::samples::RigidBodyState &roboPose,
+        bool calculate_worst_driveability,
+        double robot_length_x,
+        double robot_width_y) {
+    
+    if(calculate_worst_driveability) {
+        assert(robot_length_x > 0 && robot_width_y > 0);
     }
-    LOG_DEBUG_S << "yaw is: " << yaw;
     
      std::vector<std::tuple<base::samples::RigidBodyState, double, double, double, double> > listToBeSorted;
      listToBeSorted.reserve(pts.size());
      std::vector<base::samples::RigidBodyState> goals;
      goals.reserve(pts.size());
-     
+    
+     double yaw = map0to2pi(roboPose.getYaw());
+
      // The for-loop is used for calculating the angular differences
      // experimental: dividing the number of cells that will be explored 
      // at the given point by the angDifference
+     int too_close_counter = 0;
+     int no_new_cell_counter = 0;
+     int touch_obstacle = 0;
      for(std::vector<base::Vector3d>::const_iterator i = pts.begin(); i != pts.end(); ++i)
      {
         // Calculate angle of exploregoal-vector and map it to 0-2*pi radian.
         double rotationOfPoint = atan2(i->y() - roboPose.position.y(), i->x() - roboPose.position.x()); 
-        if(rotationOfPoint > 2*M_PI)
-        {
-            rotationOfPoint = fmod(rotationOfPoint, 2*M_PI);
-        }
-        if(rotationOfPoint < 0) 
-        {
-            rotationOfPoint = 2*M_PI+rotationOfPoint;
-        } 
-        // Calculate angular distance.
+        rotationOfPoint = map0to2pi(rotationOfPoint);
+       
+        // Calculate angular distance, will be [0,2*PI)
         double angularDistance = fabs(yaw-rotationOfPoint);
-        if(angularDistance > M_PI)
-        {
-            angularDistance = 2*M_PI - angularDistance;
-        }
         
         Pose givenPoint;
         // Turn Vector3d into a RigidBodyState that finally will be pushed into the list of results.
         base::samples::RigidBodyState goalBodyState;
         goalBodyState.position = *i;
-        // Calculate the distance between the robot and the goalPose. necessary for evaluation of goalPose.
-        double robotToPointDistance = (goalBodyState.position - base::Vector3d(roboPose.position.x(), roboPose.position.y(), 0)).norm();
-        if(robotToPointDistance < min_goal_distance) continue;
+        // Calculate the distance between the robot and the goalPose. 
+        double robotToPointDistance = (goalBodyState.position - 
+                base::Vector3d(roboPose.position.x(), roboPose.position.y(), 0)).norm();
+        // Goal poses which are too close to the robot are discarded.
+        if(robotToPointDistance < min_goal_distance || robotToPointDistance == 0) {
+            too_close_counter++;
+            continue;
+        }
         
         // Transform point to grid since its necessary for willBeExplored.
         size_t x, y;
@@ -479,17 +477,45 @@ std::vector<base::samples::RigidBodyState> Planner::getCheapest(std::vector<base
         unsigned numberOfExploredCells = willBeExplored(givenPoint).size();
         if(numberOfExploredCells > 0)
         {
-             // Final rating of goalPose.
-            double combinedRating = numberOfExploredCells / (angularDistance+1) / robotToPointDistance;
+            // Requests the worst driveability at the goal pose using the width/length of the robot.
+            // If the goal pose rectangle touches an obstacle the goal point is ignored.
+            double worst_driveability = 1.0;
+            if(calculate_worst_driveability) {
+                base::Pose2D pose_local;
+                pose_local.position = base::Position2D(goalBodyState.position[0], goalBodyState.position[1]);
+                pose_local.orientation = goalBodyState.getYaw();
+                try {
+                    worst_driveability = mTraversability->getWorstTraversabilityClassInRectangle
+                            (pose_local , robot_length_x, robot_width_y).getDrivability();
+                } catch (std::runtime_error &e) { // Unknown terrain class.
+                    LOG_ERROR("Unknown terrain class");
+                    continue;
+                }
+                if(worst_driveability == 0.0) {
+                    touch_obstacle++;
+                    continue;
+                }
+            }
+            
+            // Final rating of goalPose. robotToPointDistance cannot be zero.
+            // Larger values are preferred.
+            // Lazy, very curious exploration.
+            //printf("Pose (%4.2f, %4.2f, %4.2f): ");
+            double combinedRating = numberOfExploredCells / ((angularDistance+1) * robotToPointDistance);
+            // Regarding the worst driveability as well creates a lazy, curious and cautious exploration.
+            combinedRating *= worst_driveability;
             
             // Add it to the list which will be sorted afterwards. 
             // 2nd, 3rd... entry is for "debugging".
             listToBeSorted.push_back(std::make_tuple(goalBodyState, combinedRating, 
                     numberOfExploredCells, angularDistance, robotToPointDistance));
+        } else {
+            no_new_cell_counter++;
         }
      }
+     std::cout << "Of " << pts.size() << " points " << too_close_counter << " are too close and " << no_new_cell_counter << " bring nothing new and " << touch_obstacle << " touches an obstacle" << std::endl;
      
-     // Sorting list by comparing the angular differences. uses the given lambda-function 
+     // Sorting list by comparing combinedRating. uses the given lambda-function 
      std::sort(listToBeSorted.begin(), listToBeSorted.end(), 
                [](const std::tuple<base::samples::RigidBodyState, double, double, double, double>& i, 
                   const std::tuple<base::samples::RigidBodyState, double, double, double, double>& j) { 
@@ -501,6 +527,8 @@ std::vector<base::samples::RigidBodyState> Planner::getCheapest(std::vector<base
      for(i = listToBeSorted.begin(); i != listToBeSorted.end(); ++i)
      {
          base::samples::RigidBodyState targetPose = std::get<0>(*i);
+         std::cout << "Combined Rating " <<  std::get<1>(*i) << " of point (" << targetPose.position[0] << ", " <<  targetPose.position[1] << ", " << targetPose.getYaw() << ")" <<         
+                "numberOfExploredCells " << std::get<2>(*i) << ", angularDistance " << std::get<3>(*i) << ", robotToPointDistance" << std::get<4>(*i) << std::endl;
 
          targetPose.targetFrame = "world";
          targetPose.time = base::Time::now();
@@ -575,4 +603,16 @@ envire::TraversabilityGrid* Planner::coverageMapToTravGrid(const GridMap& mapToB
         }
     }
     return exploreMap;
+}
+
+// PRIVATE
+double Planner::map0to2pi(double angle_rad) {
+    double pi2 = 2*M_PI;
+    while(angle_rad >= pi2) {
+        angle_rad -= pi2;
+    }
+    while(angle_rad < 0) {
+        angle_rad += pi2;
+    }
+    return angle_rad;
 }
