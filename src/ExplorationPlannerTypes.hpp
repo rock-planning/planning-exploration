@@ -2,6 +2,7 @@
 #define EXPLORATION_TYPES_H
 
 #include <vector>
+#include <boost/concept_check.hpp>
 #include <base/Eigen.hpp>
 
 namespace exploration
@@ -116,6 +117,10 @@ namespace exploration
         
 		unsigned int getHeight() const {
             return height;
+        }
+        
+        void clearData() {
+            memset(data, UNKNOWN, sizeof(char)*width*height);
         }
 
 	private:

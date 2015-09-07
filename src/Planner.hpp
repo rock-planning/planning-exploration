@@ -87,6 +87,14 @@ namespace exploration
 
         /**takes a GridMap and turns it into a TraversabilityGrid with the attributes of the given TravGrid**/
         envire::TraversabilityGrid* coverageMapToTravGrid(const GridMap& mapToBeTranslated, envire::TraversabilityGrid& traversability);
+        
+        /**
+         * Clears the complete map / sets everything to UNKNOWN.
+         * Receiving the next trav map will reset all OBSTACLES again.
+         */
+        inline void clearCoverageMap() {
+            mCoverageMap->clearData();
+        }
        
 	private:
 		PointList getNeighbors(GridPoint p, bool diagonal = false) const;
