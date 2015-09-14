@@ -442,6 +442,7 @@ std::vector<base::samples::RigidBodyState> Planner::getCheapest(std::vector<base
      int too_close_counter = 0;
      int no_new_cell_counter = 0;
      int touch_obstacle = 0;
+     int touch_difficult_region = 0;
      for(std::vector<base::Vector3d>::const_iterator i = pts.begin(); i != pts.end(); ++i)
      {
         // Calculate angle of exploregoal-vector and map it to 0-2*pi radian.
@@ -493,6 +494,12 @@ std::vector<base::samples::RigidBodyState> Planner::getCheapest(std::vector<base
                 }
                 if(worst_driveability == 0.0) {
                     touch_obstacle++;
+                    continue;
+                }
+                // TODO Make this configureable.
+                // This should ignore the object regions which are set to this driveability.
+                if(worst_driveability <= 0.05){
+                    touch_difficult_region++;
                     continue;
                 }
             }
