@@ -7,6 +7,8 @@
 #include <envire/maps/MLSGrid.hpp>
 #include <envire/maps/TraversabilityGrid.hpp>
 
+#include <opencv2/imgproc/imgproc.hpp>
+
 namespace exploration
 {    
 	class Planner
@@ -43,12 +45,14 @@ namespace exploration
 		/** Cover all cells within sensor footprint from the given pose. Uses the 'willBeExplored' function */
 		void addReading(Pose p);
                 
-		
 		/** Get all cells that are still uncovered */
 		PointList getUnexploredCells() const;
 		
-		/** Add a sensor footprint to the internal sensor field */
-		void addSensor(Polygon p) {mSensorField.push_back(p);}
+		/** 
+         * Add a sensor footprint to the internal sensor field 
+         * Polygon has to be defined in grid coordinates.
+         */
+		void addSensor(Polygon p);
 		
 		/** Coordinate-transgform the given polygon to pose */ 
 		Polygon transformPolygon(Polygon polygon, Pose pose);
@@ -65,6 +69,14 @@ namespace exploration
         void setMinGoalDistance(double value) {min_goal_distance = value;}
 
         double getMinGoalDistance() const {return min_goal_distance;}
+        
+        /**
+         * Uses the exploration map to calculate the orientation of the goal point
+         * which should be orientated orthogonally to the known-unknown-border.
+         * \param goal_point Requires grid coordinates.
+         * \return If the passed point does not lies close to one of the found edges false is returned.
+         */
+        bool calculateGoalOrientation(struct Pose goal_point, double& orientation, bool show_debug=false);
 
         /**
          * Get the point with least angular difference to robotpose. Uses compare-function for sorting.
@@ -122,6 +134,20 @@ namespace exploration
          * Maps the passed angle to [0, 2*PI)
          */
         double map0to2pi(double angle_rad);
+        
+        /**
+         * Max distant sensor polygon point in grid coordinates.
+         */
+        double mMaxDistantSensorPoint;
+        
+        /**
+         * Counts the black(0) pixels starting at 'pose' using the contained direction.
+         * vec_len_px defines the final length of the vector. E.g. vec_len_px == 10
+         * means that vec from 1 to 10 are used to count the black pixels.
+         * TODO: Currently a pixel may be counted twice, but this should not be a problem
+         * because we do not need accurate results, just a tendency.
+         */
+        int countBlackPixels(cv::Mat mat, struct Pose pose, int vec_len_px=10);
 	};
 }
 

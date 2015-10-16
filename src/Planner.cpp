@@ -8,6 +8,8 @@
 #include <boost/concept_check.hpp>
 #include <base/Logging.hpp>
 
+#include <opencv2/highgui/highgui.hpp>
+
 using namespace exploration;
 
 typedef std::multimap<int,GridPoint> Queue;
@@ -21,6 +23,7 @@ Planner::Planner()
     mCoverageMap = nullptr;
     mTraversability = nullptr;
     min_goal_distance = 0;
+    mMaxDistantSensorPoint = -1;
 }
 
 Planner::~Planner()
@@ -401,6 +404,23 @@ PointList Planner::getUnexploredCells() const
 	return result;
 }
 
+void Planner::addSensor(Polygon p) {
+    mSensorField.push_back(p);
+    
+    // Find max distant polygon point of all added sensors.
+    // Used to determine which type of orientation calculation shuld be used. 
+    std::vector<FloatPoint>::iterator it = p.begin();
+    double len;
+    for(; it != p.end(); it++) {
+        len = it->norm();
+        std::cout << "len " << len << " x " << it->x << " y " << it->y << std::endl;
+        if(len > mMaxDistantSensorPoint) {
+            mMaxDistantSensorPoint = len;
+        }
+    }
+    std::cout << "Max len " << len << std::endl;
+}
+
 Pose Planner::getCoverageTarget(Pose start)
 {
 	GridPoint startPoint;
@@ -417,6 +437,147 @@ Pose Planner::getCoverageTarget(Pose start)
 		if(p->distance > 20 && p->distance < 30) break;
 	}
 	return target;
+}
+
+bool Planner::calculateGoalOrientation(struct Pose goal_point, double& orientation, bool show_debug){
+    int num_cells_radius = 12;
+    bool ret = false;
+    
+    // Defines opencv image (area around the goal point).
+    int min_x = goal_point.x - num_cells_radius;
+    int max_x = goal_point.x + num_cells_radius;
+    int min_y = goal_point.y - num_cells_radius;
+    int max_y = goal_point.y + num_cells_radius;
+    if(min_x < 0)
+        min_x = 0;
+    if(min_y < 0)
+        min_y = 0;
+    if(max_x > (int)mCoverageMap->getWidth())
+        max_x = mCoverageMap->getWidth();
+    if(max_y > (int)mCoverageMap->getHeight())
+        max_y = mCoverageMap->getHeight();
+    
+    int width_cv = max_x-min_x;
+    int height_cv = max_y-min_y;
+    if(width_cv <= 0 || height_cv <= 0) {
+        LOG_WARN("Opencv image size is too small (%d, %d), orientation 0 will be returned");
+        return false;
+    }
+    
+    // Calculate goal position within the OpenCV image.
+    struct Pose goal_point_cv;
+    goal_point_cv.x = goal_point.x - min_x;
+    goal_point_cv.y = goal_point.y - min_y;
+    LOG_DEBUG("Calculate orientation for exploration point (%4.2f, %4.2f), opencv pixel (%d, %d)",
+        goal_point.x, goal_point.y, goal_point_cv.x, goal_point_cv.y);
+
+    // Copy image from the exploration map to the opencv image.
+    // TODO Treat OBSTACLEs as unknown?
+    cv::Mat mat_src(height_cv, width_cv, CV_8UC1, cv::Scalar(0));
+    char* coverage_map = mCoverageMap->getData();
+    int c = 0;
+    int x_cv = 0;
+    for(int x = min_x; x < max_x; ++x, ++x_cv) {
+        int y_cv = 0;
+        for(int y = min_y; y < max_y; ++y, ++y_cv) {
+            c = (int)coverage_map[y*mCoverageMap->getWidth()+x];
+            if(c == VISIBLE || c == EXPLORED) {
+                mat_src.at<uchar>(y_cv,x_cv) = 255;
+            } else { // OBSTACLE or UNKNOWN
+                mat_src.at<uchar>(y_cv,x_cv) = 0;
+            }
+        }
+    }
+    
+    cv::Mat mat_canny, mat_canny_bgr;
+    Canny(mat_src, mat_canny, 50, 200);
+    std::vector<cv::Vec2f> lines;
+    // Resolution: 1 px and 180/32 degree.
+    HoughLines(mat_canny, lines, 1, CV_PI/32, 10);
+
+    if(show_debug) {
+        cvtColor(mat_canny, mat_canny_bgr, CV_GRAY2BGR);
+    }
+        
+    // Examines the found edges, choose the best one if available.
+    int size_v = (int)lines.size();
+    cv::Point lowest_dist_pt1, lowest_dist_pt2;
+    double shortest_dist = std::numeric_limits<double>::max();
+    double expl_point_orientation = 0;
+    for( size_t i = 0; i < lines.size(); i++ )
+    {
+        float rho = lines[i][0], theta = lines[i][1];
+        cv::Point pt1, pt2;
+        double a = cos(theta), b = sin(theta);
+        double x0 = a*rho, y0 = b*rho;
+        pt1.x = cvRound(x0 + 1000*(-b));
+        pt1.y = cvRound(y0 + 1000*(a));
+        pt2.x = cvRound(x0 - 1000*(-b));
+        pt2.y = cvRound(y0 - 1000*(a));
+        
+        // Determine the exploration point which lies closest to the found edge.
+        double dist_diff_px = fabs((goal_point_cv.x * a + goal_point_cv.y * b) - rho);
+        if(dist_diff_px < shortest_dist) {
+            lowest_dist_pt1 = pt1;
+            lowest_dist_pt2 = pt2;
+            shortest_dist = dist_diff_px;
+            expl_point_orientation = theta;
+        }
+        if(show_debug) {
+            line( mat_canny_bgr, pt1, pt2, cv::Scalar(0,0,64), 1, 8/*CV_AA*/);
+        }
+    }
+    
+    // Calculate correct orientation (theta or theta+M_PI) by counting black pixels.
+    // So, the direction with more black pixels is the direction the exploration should look at.
+    int num_pixels_to_check = 10;
+    goal_point_cv.theta = expl_point_orientation;
+    int count_theta = countBlackPixels(mat_src, goal_point_cv , num_pixels_to_check);
+    goal_point_cv.theta = expl_point_orientation + M_PI;
+    int count_theta_pi = countBlackPixels(mat_src, goal_point_cv , num_pixels_to_check);
+    if(abs(count_theta - count_theta_pi) >= 4) { // Difference is big enough.
+        if(count_theta_pi > count_theta) { // Use orientation with more black / unknown pixels.
+            expl_point_orientation = expl_point_orientation + M_PI;
+        }
+        
+        // Draw line closest to the exploration point.
+        if(shortest_dist <= 2.0) {
+            LOG_DEBUG("Found edge lies close enough to the exploration point (%4.2f pixels)", shortest_dist);
+            if(show_debug) {
+                line( mat_canny_bgr, lowest_dist_pt1, lowest_dist_pt2, cv::Scalar(0,0,200), 1, 8/*CV_AA*/);
+            }
+            orientation = expl_point_orientation;
+            ret = true;
+        }
+        
+        if(show_debug) {
+            // Draw cross goal point.
+            cv::Point pt_e1, pt_e2;
+            pt_e1.x = goal_point_cv.x - 2;
+            pt_e1.y = goal_point_cv.y;
+            pt_e2.x = goal_point_cv.x + 2;
+            pt_e2.y = goal_point_cv.y;
+            line( mat_canny_bgr, pt_e1, pt_e2, cv::Scalar(0,128,0), 1, 8/*CV_AA*/);
+            pt_e1.x = goal_point_cv.x;
+            pt_e1.y = goal_point_cv.y - 2;
+            pt_e2.x = goal_point_cv.x;
+            pt_e2.y = goal_point_cv.y + 2;
+            line( mat_canny_bgr, pt_e1, pt_e2, cv::Scalar(0,128,0), 1, 8/*CV_AA*/);
+            
+            // Display windows.
+            cv::Size size(300,300);//the dst image size,e.g.100x100   
+            cv::Mat mat_src_resize, mat_canny_resize;
+            resize(mat_src, mat_src_resize, size);
+            resize(mat_canny_bgr, mat_canny_resize, size);
+            
+            
+            imshow("source", mat_src_resize);
+            imshow("detected lines", mat_canny_resize);
+            
+            cv::waitKey();
+        }
+    }
+    return ret;
 }
 
 std::vector<base::samples::RigidBodyState> Planner::getCheapest(std::vector<base::Vector3d> &pts, 
@@ -443,19 +604,60 @@ std::vector<base::samples::RigidBodyState> Planner::getCheapest(std::vector<base
      int no_new_cell_counter = 0;
      int touch_obstacle = 0;
      int touch_difficult_region = 0;
+     size_t robo_pt_x = 0, robo_pt_y = 0;
+     bool robot_pos_grid_available = false;
+     if(mTraversability->toGrid(roboPose.position, robo_pt_x, robo_pt_y, mTraversability->getFrameNode())) {
+         robot_pos_grid_available = true;
+     } else {
+         LOG_WARN("Robot position (%4.2f, %4.2f) lies outside of the grid (%d, %d)", 
+             roboPose.position[0], roboPose.position[1], robo_pt_x, robo_pt_y);
+     }
+     
      for(std::vector<base::Vector3d>::const_iterator i = pts.begin(); i != pts.end(); ++i)
      {
-        // Calculate angle of exploregoal-vector and map it to 0-2*pi radian.
-        double rotationOfPoint = atan2(i->y() - roboPose.position.y(), i->x() - roboPose.position.x()); 
-        rotationOfPoint = map0to2pi(rotationOfPoint);
-       
-        // Calculate angular distance, will be [0,2*PI)
-        double angularDistance = fabs(yaw-rotationOfPoint);
-        
         Pose givenPoint;
+        // Transform point to grid since its necessary for willBeExplored.
+        size_t expl_pt_x = 0, expl_pt_y = 0;
         // Turn Vector3d into a RigidBodyState that finally will be pushed into the list of results.
         base::samples::RigidBodyState goalBodyState;
         goalBodyState.position = *i;
+        if(mTraversability->toGrid(goalBodyState.position, expl_pt_x, expl_pt_y, mTraversability->getFrameNode()))
+        {     
+            givenPoint.x = expl_pt_x; 
+            givenPoint.y = expl_pt_y;
+        } else { // Should not happen.
+            continue;
+        }
+        
+        // If the distance between the robot and the exploration point exceeds the sensor range
+        // (simply a far-away-goal) we use the edge detection to calculate the orientation
+        // of the goal pose, otherwise the orientation of the vector between robot and goal is used.
+        bool use_calculate_goal_orientation = false;
+        double dist_robo_goal_grid = 0.0;
+        if(robot_pos_grid_available && mMaxDistantSensorPoint > 0) {     
+            dist_robo_goal_grid = sqrt(pow((int)expl_pt_x - (int)robo_pt_x, 2) + 
+                    pow((int)expl_pt_y - (int)robo_pt_y, 2));
+            if(dist_robo_goal_grid > mMaxDistantSensorPoint) {
+                use_calculate_goal_orientation = true;
+            }
+        } 
+         
+        // Calculate angle of exploregoal-vector and map it to 0-2*pi radian.
+        double rotationOfPoint = 0.0;
+        // If the exploration point lies close to the robot or if no matching edge 
+        // can be found the old orientation calculation is used.
+        if(!(use_calculate_goal_orientation && calculateGoalOrientation(givenPoint, rotationOfPoint, false))) {
+            rotationOfPoint = atan2(i->y() - roboPose.position.y(), i->x() - roboPose.position.x()); 
+            LOG_DEBUG("Goal orientation has been calculated using the current robot position");
+        } else {
+            LOG_DEBUG("Goal orientation has been calculated using edge detection");
+        }
+        rotationOfPoint = map0to2pi(rotationOfPoint);
+        givenPoint.theta = rotationOfPoint;
+        
+        // Calculate angular distance, will be [0,2*PI)
+        double angularDistance = fabs(yaw-rotationOfPoint);
+        
         // Calculate the distance between the robot and the goalPose. 
         double robotToPointDistance = (goalBodyState.position - 
                 base::Vector3d(roboPose.position.x(), roboPose.position.y(), 0)).norm();
@@ -465,14 +667,7 @@ std::vector<base::samples::RigidBodyState> Planner::getCheapest(std::vector<base
             continue;
         }
         
-        // Transform point to grid since its necessary for willBeExplored.
-        size_t x, y;
-        if(mTraversability->toGrid(goalBodyState.position, x, y, mTraversability->getFrameNode()))
-        {     
-            givenPoint.theta = rotationOfPoint;
-            givenPoint.x = x; givenPoint.y = y;
-        }
-        
+        // Assign orientation to goal position.
         goalBodyState.orientation = Eigen::Quaterniond(Eigen::AngleAxisd(givenPoint.theta, Eigen::Vector3d::UnitZ()));
         
         unsigned numberOfExploredCells = willBeExplored(givenPoint).size();
@@ -520,7 +715,6 @@ std::vector<base::samples::RigidBodyState> Planner::getCheapest(std::vector<base
             no_new_cell_counter++;
         }
      }
-     std::cout << "Of " << pts.size() << " points " << too_close_counter << " are too close and " << no_new_cell_counter << " bring nothing new and " << touch_obstacle << " touches an obstacle" << std::endl;
      
      // Sorting list by comparing combinedRating. uses the given lambda-function 
      std::sort(listToBeSorted.begin(), listToBeSorted.end(), 
@@ -534,8 +728,6 @@ std::vector<base::samples::RigidBodyState> Planner::getCheapest(std::vector<base
      for(i = listToBeSorted.begin(); i != listToBeSorted.end(); ++i)
      {
          base::samples::RigidBodyState targetPose = std::get<0>(*i);
-         std::cout << "Combined Rating " <<  std::get<1>(*i) << " of point (" << targetPose.position[0] << ", " <<  targetPose.position[1] << ", " << targetPose.getYaw() << ")" <<         
-                "numberOfExploredCells " << std::get<2>(*i) << ", angularDistance " << std::get<3>(*i) << ", robotToPointDistance" << std::get<4>(*i) << std::endl;
 
          targetPose.targetFrame = "world";
          targetPose.time = base::Time::now();
@@ -622,4 +814,26 @@ double Planner::map0to2pi(double angle_rad) {
         angle_rad += pi2;
     }
     return angle_rad;
+}
+
+int Planner::countBlackPixels(cv::Mat mat, struct Pose pose, int vec_len_px) {
+    base::Vector2d start(pose.x, pose.y);
+    double orientation = pose.theta;
+    int count_black = 0;
+    
+    for(int i=1; i<=vec_len_px; i++) {
+        base::Vector2d vec(i, 0.0);
+        
+        Eigen::Rotation2D<double> rot2(orientation);
+        vec = rot2 * vec;
+        vec += start;
+        if(vec[0] < 0 || vec[0] >= mat.cols ||
+            vec[1] < 0 || vec[1] >= mat.rows) {
+            return count_black;
+        }
+        if(mat.at<uchar>(vec[1], vec[0]) == 0) {
+            count_black++;
+        }
+    }
+    return count_black;
 }

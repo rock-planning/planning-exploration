@@ -10,12 +10,32 @@ namespace exploration
     enum Status {SUCCESS, NO_GOAL, ERROR, NOT_IMPLEMENTED};            
     enum DrivabilityClasses {VISIBLE, OBSTACLE = 2, EXPLORED, UNKNOWN };
     
+    struct Pose
+    {
+        Pose() : x(0.0), y(0.0), theta(0.0) {
+        }
+        
+        Pose(base::Vector3d vec): x(vec[0]), y(vec[1]), theta(0.0) {
+        }
+        
+        double x;
+        double y;
+        double theta;
+    };
+       
+    
 	struct GridPoint
 	{
         GridPoint() : x(0), y(0), distance(0) {
         }
         
         GridPoint(int x_, int y_, int distance_) : x(x_), y(y_), distance(distance_) {
+        }
+        
+        GridPoint(base::Vector3d vec) : x(vec[0]), y(vec[1]), distance(0) {
+        }
+        
+        GridPoint(Pose pose) : x(pose.x), y(pose.y), distance(0) {
         }
         
 		int x;
@@ -30,18 +50,12 @@ namespace exploration
         
 		double x;
 		double y;
-	};
-
-	struct Pose
-	{
-        Pose() : x(0.0), y(0.0), theta(0.0) {
+        
+        double norm() {
+            return sqrt(x*x + y*y);
         }
-        
-		double x;
-		double y;
-		double theta;
 	};
-        
+ 
     //used since std::vector<std::vector<FloatPoint>> doesn't seem to work with oroGen configs
     struct ConfPolygon
     {
