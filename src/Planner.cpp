@@ -500,7 +500,6 @@ bool Planner::calculateGoalOrientation(struct Pose goal_point, double& orientati
     }
         
     // Examines the found edges, choose the best one if available.
-    int size_v = (int)lines.size();
     cv::Point lowest_dist_pt1, lowest_dist_pt2;
     double shortest_dist = std::numeric_limits<double>::max();
     double expl_point_orientation = 0;
@@ -603,7 +602,9 @@ std::vector<base::samples::RigidBodyState> Planner::getCheapest(std::vector<base
      int too_close_counter = 0;
      int no_new_cell_counter = 0;
      int touch_obstacle = 0;
-     int touch_difficult_region = 0;
+     int unknown_terrain_class = 0;
+     int outside_of_the_map = 0;
+     //int touch_difficult_region = 0;
      size_t robo_pt_x = 0, robo_pt_y = 0;
      bool robot_pos_grid_available = false;
      if(mTraversability->toGrid(roboPose.position, robo_pt_x, robo_pt_y, mTraversability->getFrameNode())) {
@@ -612,7 +613,7 @@ std::vector<base::samples::RigidBodyState> Planner::getCheapest(std::vector<base
          LOG_WARN("Robot position (%4.2f, %4.2f) lies outside of the grid (%d, %d)", 
              roboPose.position[0], roboPose.position[1], robo_pt_x, robo_pt_y);
      }
-     
+          
      for(std::vector<base::Vector3d>::const_iterator i = pts.begin(); i != pts.end(); ++i)
      {
         Pose givenPoint;
@@ -626,6 +627,7 @@ std::vector<base::samples::RigidBodyState> Planner::getCheapest(std::vector<base
             givenPoint.x = expl_pt_x; 
             givenPoint.y = expl_pt_y;
         } else { // Should not happen.
+            outside_of_the_map++;
             continue;
         }
         
@@ -685,16 +687,11 @@ std::vector<base::samples::RigidBodyState> Planner::getCheapest(std::vector<base
                             (pose_local , robot_length_x, robot_width_y).getDrivability();
                 } catch (std::runtime_error &e) { // Unknown terrain class.
                     LOG_ERROR("Unknown terrain class");
+                    unknown_terrain_class++;
                     continue;
                 }
                 if(worst_driveability == 0.0) {
                     touch_obstacle++;
-                    continue;
-                }
-                // TODO Make this configureable.
-                // This should ignore the object regions which are set to this driveability.
-                if(worst_driveability <= 0.05){
-                    touch_difficult_region++;
                     continue;
                 }
             }
@@ -715,6 +712,9 @@ std::vector<base::samples::RigidBodyState> Planner::getCheapest(std::vector<base
             no_new_cell_counter++;
         }
      }
+     
+     LOG_INFO("%d of %d exploration points are uses: %d touches an obstacle, %d are too close to the robot, %d leads to no new cells, %d lies outside of the map", 
+            listToBeSorted.size(), pts.size(), touch_obstacle, too_close_counter, no_new_cell_counter, outside_of_the_map);
      
      // Sorting list by comparing combinedRating. uses the given lambda-function 
      std::sort(listToBeSorted.begin(), listToBeSorted.end(), 
@@ -740,7 +740,7 @@ std::vector<base::samples::RigidBodyState> Planner::getCheapest(std::vector<base
      if(goals.empty())
      {
         LOG_WARN_S << "did not find any target, propably stuck in an obstacle.";
-     } 
+     }
      
      return goals;
 }
