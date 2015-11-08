@@ -9,12 +9,84 @@
 
 #include <opencv2/imgproc/imgproc.hpp>
 
+#include "Config.hpp"
+
 namespace exploration
 {    
+    /**
+     * Used to store data for each exploration point. 
+     * After all expl. points have been processed the overallValue
+     * can be calculated which is used to sort the points.
+     */
+    struct ExplorationPoint {
+        
+        ExplorationPoint(base::samples::RigidBodyState expl_pose,
+                unsigned int num_expl_cells,
+                double ang_dist,
+                double robot_point_dist,
+                double worst_driveability,
+                bool edge_found) : 
+                explPose(expl_pose),
+                numberOfExploredCells(num_expl_cells),
+                angularDistance(ang_dist),
+                robotPointDistance(robot_point_dist),
+                worstDriveability(worst_driveability),
+                edgeFound(edge_found),
+                expl_value(0.0),
+                ang_value(0.0),
+                dist_value(0.0),
+                driveability_value(0.0),
+                edge_value(0.0) {
+        }
+            
+        bool operator<(const ExplorationPoint& rhs) const
+        {
+            return overallValue < rhs.overallValue;
+        }
+        
+        /**
+         * Calculates the overall value of this exploratin point.
+         * If max_explored_cells or max_robot_goal_dist is 0, the explored cells
+         * or the the distance of the goal point is ignored.
+         * The bigger the better.
+         */
+        double calculateOverallValue(Weights& weights, double max_explored_cells, double max_robot_goal_dist) {
+            if(max_explored_cells != 0) {
+                expl_value = weights.explCells * (numberOfExploredCells / max_explored_cells);
+            }
+            ang_value = weights.angDist * (1-(angularDistance / M_PI));
+            if(max_robot_goal_dist != 0) {
+                dist_value = weights.robotGoalDist * (1-(robotPointDistance / max_robot_goal_dist));
+            }
+            driveability_value = weights.driveability * worstDriveability;
+            edge_value = edgeFound ? weights.edgeDetected : 0;
+            overallValue = expl_value + ang_value + dist_value + driveability_value + edge_value;
+            return overallValue;
+        }
+    
+        double overallValue;
+        base::samples::RigidBodyState explPose;
+        unsigned int numberOfExploredCells;
+        double angularDistance;
+        double robotPointDistance;
+        double worstDriveability;
+        // Is set to true if an edge has been searched and found or if 
+        // the point is close to the robot and no edge detection has been required.
+        // Otherwise far away edge points would win against close points for 
+        // which an edge detection has not been required.
+        bool edgeFound;
+        
+        double expl_value;
+        double ang_value;
+        double dist_value;
+        double driveability_value;
+        double edge_value;
+    };
+    
 	class Planner
 	{
 	public:
-		Planner();
+		Planner(Config config = Config());
 		~Planner();
 		
 		/** Returns the result of the last operation */
@@ -109,6 +181,7 @@ namespace exploration
         }
        
 	private:
+        Config mConfig;
 		PointList getNeighbors(GridPoint p, bool diagonal = false) const;
 		PointList getFrontier(GridMap* map, GridMap* plan, GridPoint start);
 		bool isFrontierCell(GridMap* map, GridPoint point) const;

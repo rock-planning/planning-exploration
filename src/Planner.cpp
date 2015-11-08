@@ -5,6 +5,7 @@
 #include <iostream>
 #include <math.h>
 #include <algorithm> // sort
+#include <list>
 #include <boost/concept_check.hpp>
 #include <base/Logging.hpp>
 
@@ -16,7 +17,7 @@ typedef std::multimap<int,GridPoint> Queue;
 typedef std::pair<int,GridPoint> Entry;
 
 
-Planner::Planner()
+Planner::Planner(Config config)
 {
     mFrontierCellCount = 0;
     mFrontierCount = 0;
@@ -24,6 +25,7 @@ Planner::Planner()
     mTraversability = nullptr;
     min_goal_distance = 0;
     mMaxDistantSensorPoint = -1;
+    mConfig = config;
 }
 
 Planner::~Planner()
@@ -615,7 +617,10 @@ std::vector<base::samples::RigidBodyState> Planner::getCheapest(std::vector<base
         LOG_WARN("Robot position (%4.2f, %4.2f) lies outside of the grid (%d, %d)", 
             roboPose.position[0], roboPose.position[1], robo_pt_x, robo_pt_y);
     }
-        
+    
+    double max_robot_goal_dist = 0;
+    double max_explored_cells = 0;
+    std::list<ExplorationPoint> expl_point_list;
     for(std::vector<base::Vector3d>::const_iterator i = pts.begin(); i != pts.end(); ++i)
     {
         Pose givenPoint;
@@ -650,22 +655,30 @@ std::vector<base::samples::RigidBodyState> Planner::getCheapest(std::vector<base
         double rotationOfPoint = 0.0;
         // If the exploration point lies close to the robot or if no matching edge 
         // can be found the old orientation calculation is used.
-        bool edge_found = calculateGoalOrientation(givenPoint, rotationOfPoint, visualize_debug_infos);
-        if(!(use_calculate_goal_orientation && edge_found)) {
+        bool edge_found = false;
+        if(!(use_calculate_goal_orientation && calculateGoalOrientation(givenPoint, rotationOfPoint, visualize_debug_infos))) {
             rotationOfPoint = atan2(i->y() - roboPose.position.y(), i->x() - roboPose.position.x()); 
             LOG_DEBUG("Goal orientation has been calculated using the current robot position");
         } else {
             LOG_DEBUG("Goal orientation has been calculated using edge detection");
+            edge_found = true;
         }
         rotationOfPoint = map0to2pi(rotationOfPoint);
         givenPoint.theta = rotationOfPoint;
         
         // Calculate angular distance, will be [0,2*PI)
         double angularDistance = fabs(yaw-rotationOfPoint);
+        // Robot will use shortest turning distance!
+        if(angularDistance > M_PI) {
+            angularDistance = 2*M_PI - angularDistance;
+        }
         
         // Calculate the distance between the robot and the goalPose. 
         double robotToPointDistance = (goalBodyState.position - 
                 base::Vector3d(roboPose.position.x(), roboPose.position.y(), 0)).norm();
+        if(robotToPointDistance > max_robot_goal_dist) {
+            max_robot_goal_dist = robotToPointDistance;
+        }
         // Goal poses which are too close to the robot are discarded.
         if(robotToPointDistance < min_goal_distance || robotToPointDistance == 0) {
             too_close_counter++;
@@ -677,6 +690,9 @@ std::vector<base::samples::RigidBodyState> Planner::getCheapest(std::vector<base
         
         // Ignore ecploration point if it is no real exploration point.
         unsigned numberOfExploredCells = willBeExplored(givenPoint).size();
+        if(numberOfExploredCells > max_explored_cells) {
+            max_explored_cells = numberOfExploredCells;
+        }
         if(numberOfExploredCells <= 0) {
             no_new_cell_counter++;
             continue;
@@ -703,43 +719,47 @@ std::vector<base::samples::RigidBodyState> Planner::getCheapest(std::vector<base
             }
         }
         
-        // Final rating of goalPose. robotToPointDistance cannot be zero.
-        // Larger values are preferred.
-        // Lazy, very curious exploration.
-        //printf("Pose (%4.2f, %4.2f, %4.2f): ");
-        double combinedRating = numberOfExploredCells / ((angularDistance+1) * robotToPointDistance);
-        // Regarding the worst driveability as well creates a lazy, curious and cautious exploration.
-        combinedRating *= worst_driveability;
-        // Increase the value of an exploration point sligthly if the edge detection 
-        
-        // Add it to the list which will be sorted afterwards. 
-        // 2nd, 3rd... entry is for "debugging".
-        listToBeSorted.push_back(std::make_tuple(goalBodyState, combinedRating, 
-                numberOfExploredCells, angularDistance, robotToPointDistance));
+        // Create exploration point and add it to a list to be sorted as soon
+        // as max_robot_goal_dist and max_explored_cells are known.
+        ExplorationPoint expl_point(goalBodyState, 
+                numberOfExploredCells,
+                angularDistance,
+                robotToPointDistance,
+                worst_driveability,
+                !use_calculate_goal_orientation || edge_found); // See documentation in ExplorationPoint.edgeFound.
+        expl_point_list.push_back(expl_point);
     }
     
     LOG_INFO("%d of %d exploration points are uses: %d touches an obstacle, %d are too close to the robot, %d leads to no new cells, %d lies outside of the map", 
         listToBeSorted.size(), pts.size(), touch_obstacle, too_close_counter, no_new_cell_counter, outside_of_the_map);
     
-    // Sorting list by comparing combinedRating. uses the given lambda-function 
-    std::sort(listToBeSorted.begin(), listToBeSorted.end(), 
-            [](const std::tuple<base::samples::RigidBodyState, double, double, double, double>& i, 
-                const std::tuple<base::samples::RigidBodyState, double, double, double, double>& j) { 
-        return std::get<1>(i) > std::get<1>(j); 
-    });
+    std::list<ExplorationPoint>::iterator it = expl_point_list.begin();
+    double max_value = 0;
+    double min_value = std::numeric_limits<double>::max();
+    double value = 0;
+    for(; it != expl_point_list.end(); it++) {
+        value = it->calculateOverallValue(mConfig.weights, max_explored_cells, max_robot_goal_dist);
+        if(value > max_value)
+            max_value = value;
+        if(value < min_value)
+            min_value = value;
+    }
+    // Higher values are better, so the optimal goal is the last one.
+    expl_point_list.sort();
     
-    // Copy the goalvectors of the sorted list of triples into the std::vector that is going to be dumped on the port.
-    std::vector<std::tuple<base::samples::RigidBodyState, double, double,  double, double> >::const_iterator i;
-    for(i = listToBeSorted.begin(); i != listToBeSorted.end(); ++i)
-    {
-        base::samples::RigidBodyState targetPose = std::get<0>(*i);
-
-        targetPose.targetFrame = "world";
-        targetPose.time = base::Time::now();
-        LOG_DEBUG_S << "pushed point: " << targetPose.position.x() << "/" << targetPose.position.y() << 
-            " with rating: " << std::get<1>(*i) << " . Cells: " << std::get<2>(*i) << 
-            " . AngDistance: " << std::get<3>(*i) << " . Distance: " << std::get<4>(*i);
-        goals.push_back(targetPose);
+    // Copy the goal vectors into a vector which is dumped on the port.
+    // The list is processed from back to front, so the first element in the goal vector is the best one.
+    base::samples::RigidBodyState expl_rbs;
+    printf("Exploration point list:\n");
+    for (auto rit = expl_point_list.crbegin(); rit != expl_point_list.crend(); ++rit) {
+        expl_rbs = rit->explPose;
+        expl_rbs.targetFrame = "world";
+        expl_rbs.time = base::Time::now();
+        goals.push_back(expl_rbs);
+        printf("Point(%4.2f, %4.2f, %4.2f) values: overall(%4.2f), expl(%4.2f), ang(%4.2f), dist(%4.2f), driveability(%4.2f), edge(%4.2f)\n",
+               rit->explPose.position[0], rit->explPose.position[1], rit->explPose.getYaw(),
+               rit->overallValue,
+               rit->expl_value, rit->ang_value, rit->dist_value, rit->driveability_value, rit->edge_value);
     }
     
     if(goals.empty())
