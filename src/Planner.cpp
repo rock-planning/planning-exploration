@@ -750,13 +750,13 @@ std::vector<base::samples::RigidBodyState> Planner::getCheapest(std::vector<base
     // Copy the goal vectors into a vector which is dumped on the port.
     // The list is processed from back to front, so the first element in the goal vector is the best one.
     base::samples::RigidBodyState expl_rbs;
-    printf("Exploration point list:\n");
+    LOG_DEBUG("Exploration point list:\n");
     for (auto rit = expl_point_list.crbegin(); rit != expl_point_list.crend(); ++rit) {
         expl_rbs = rit->explPose;
         expl_rbs.targetFrame = "world";
         expl_rbs.time = base::Time::now();
         goals.push_back(expl_rbs);
-        printf("Point(%4.2f, %4.2f, %4.2f) values: overall(%4.2f), expl(%4.2f), ang(%4.2f), dist(%4.2f), driveability(%4.2f), edge(%4.2f)\n",
+        LOG_DEBUG("Point(%4.2f, %4.2f, %4.2f) values: overall(%4.2f), expl(%4.2f), ang(%4.2f), dist(%4.2f), driveability(%4.2f), edge(%4.2f)\n",
                rit->explPose.position[0], rit->explPose.position[1], rit->explPose.getYaw(),
                rit->overallValue,
                rit->expl_value, rit->ang_value, rit->dist_value, rit->driveability_value, rit->edge_value);
