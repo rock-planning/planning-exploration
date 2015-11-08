@@ -589,6 +589,7 @@ std::vector<base::samples::RigidBodyState> Planner::getCheapest(std::vector<base
         assert(robot_length_x > 0 && robot_width_y > 0);
     }
     
+     bool visualize_debug_infos = false; 
      std::vector<std::tuple<base::samples::RigidBodyState, double, double, double, double> > listToBeSorted;
      listToBeSorted.reserve(pts.size());
      std::vector<base::samples::RigidBodyState> goals;
@@ -648,7 +649,8 @@ std::vector<base::samples::RigidBodyState> Planner::getCheapest(std::vector<base
         double rotationOfPoint = 0.0;
         // If the exploration point lies close to the robot or if no matching edge 
         // can be found the old orientation calculation is used.
-        if(!(use_calculate_goal_orientation && calculateGoalOrientation(givenPoint, rotationOfPoint, false))) {
+        bool edge_found = calculateGoalOrientation(givenPoint, rotationOfPoint, visualize_debug_infos);
+        if(!(use_calculate_goal_orientation && edge_found)) {
             rotationOfPoint = atan2(i->y() - roboPose.position.y(), i->x() - roboPose.position.x()); 
             LOG_DEBUG("Goal orientation has been calculated using the current robot position");
         } else {
@@ -672,45 +674,47 @@ std::vector<base::samples::RigidBodyState> Planner::getCheapest(std::vector<base
         // Assign orientation to goal position.
         goalBodyState.orientation = Eigen::Quaterniond(Eigen::AngleAxisd(givenPoint.theta, Eigen::Vector3d::UnitZ()));
         
+        // Ignore ecploration point if it is no real exploration point.
         unsigned numberOfExploredCells = willBeExplored(givenPoint).size();
-        if(numberOfExploredCells > 0)
-        {
-            // Requests the worst driveability at the goal pose using the width/length of the robot.
-            // If the goal pose rectangle touches an obstacle the goal point is ignored.
-            double worst_driveability = 1.0;
-            if(calculate_worst_driveability) {
-                base::Pose2D pose_local;
-                pose_local.position = base::Position2D(goalBodyState.position[0], goalBodyState.position[1]);
-                pose_local.orientation = goalBodyState.getYaw();
-                try {
-                    worst_driveability = mTraversability->getWorstTraversabilityClassInRectangle
-                            (pose_local , robot_length_x, robot_width_y).getDrivability();
-                } catch (std::runtime_error &e) { // Unknown terrain class.
-                    LOG_ERROR("Unknown terrain class");
-                    unknown_terrain_class++;
-                    continue;
-                }
-                if(worst_driveability == 0.0) {
-                    touch_obstacle++;
-                    continue;
-                }
-            }
-            
-            // Final rating of goalPose. robotToPointDistance cannot be zero.
-            // Larger values are preferred.
-            // Lazy, very curious exploration.
-            //printf("Pose (%4.2f, %4.2f, %4.2f): ");
-            double combinedRating = numberOfExploredCells / ((angularDistance+1) * robotToPointDistance);
-            // Regarding the worst driveability as well creates a lazy, curious and cautious exploration.
-            combinedRating *= worst_driveability;
-            
-            // Add it to the list which will be sorted afterwards. 
-            // 2nd, 3rd... entry is for "debugging".
-            listToBeSorted.push_back(std::make_tuple(goalBodyState, combinedRating, 
-                    numberOfExploredCells, angularDistance, robotToPointDistance));
-        } else {
+        if(numberOfExploredCells <= 0) {
             no_new_cell_counter++;
+            continue;
         }
+
+        // Requests the worst driveability at the goal pose using the width/length of the robot.
+        // If the goal pose rectangle touches an obstacle the goal point is ignored.
+        double worst_driveability = 1.0;
+        if(calculate_worst_driveability) {
+            base::Pose2D pose_local;
+            pose_local.position = base::Position2D(goalBodyState.position[0], goalBodyState.position[1]);
+            pose_local.orientation = goalBodyState.getYaw();
+            try {
+                worst_driveability = mTraversability->getWorstTraversabilityClassInRectangle
+                        (pose_local , robot_length_x, robot_width_y).getDrivability();
+            } catch (std::runtime_error &e) { // Unknown terrain class.
+                LOG_ERROR("Unknown terrain class");
+                unknown_terrain_class++;
+                continue;
+            }
+            if(worst_driveability == 0.0) {
+                touch_obstacle++;
+                continue;
+            }
+        }
+        
+        // Final rating of goalPose. robotToPointDistance cannot be zero.
+        // Larger values are preferred.
+        // Lazy, very curious exploration.
+        //printf("Pose (%4.2f, %4.2f, %4.2f): ");
+        double combinedRating = numberOfExploredCells / ((angularDistance+1) * robotToPointDistance);
+        // Regarding the worst driveability as well creates a lazy, curious and cautious exploration.
+        combinedRating *= worst_driveability;
+        
+        // Add it to the list which will be sorted afterwards. 
+        // 2nd, 3rd... entry is for "debugging".
+        listToBeSorted.push_back(std::make_tuple(goalBodyState, combinedRating, 
+                numberOfExploredCells, angularDistance, robotToPointDistance));
+
      }
      
      LOG_INFO("%d of %d exploration points are uses: %d touches an obstacle, %d are too close to the robot, %d leads to no new cells, %d lies outside of the map", 
@@ -740,9 +744,18 @@ std::vector<base::samples::RigidBodyState> Planner::getCheapest(std::vector<base
      if(goals.empty())
      {
         LOG_WARN_S << "did not find any target, propably stuck in an obstacle.";
+     } else if(visualize_debug_infos) {
+         // Adds best goal to the intern grid map for visualization.
+         base::samples::RigidBodyState best_rbs_local = *(goals.begin());
+         base::Pose2D pose2d;
+         pose2d.position = base::Vector2d(best_rbs_local.position[0], best_rbs_local.position[1]);
+         pose2d.orientation = best_rbs_local.getYaw();
+         mTraversability->forEachInRectangle(pose2d, robot_length_x, robot_width_y, [&] (size_t x, size_t y) {
+             mCoverageMap->setData(GridPoint(x,y,0), GOAL_CELL);
+         });
      }
      
-     return goals;
+    return goals;
 }
 
 FrontierList Planner::getCoverageFrontiers(Pose start)
@@ -768,6 +781,7 @@ envire::TraversabilityGrid* Planner::coverageMapToTravGrid(const GridMap& mapToB
     exploreMap->setTraversabilityClass(OBSTACLE, envire::TraversabilityClass (0.0)); //obstacle
     exploreMap->setTraversabilityClass(EXPLORED, envire::TraversabilityClass (1.0)); //explored
     exploreMap->setTraversabilityClass(UNKNOWN, envire::TraversabilityClass (0.5)); //unknown
+    exploreMap->setTraversabilityClass(GOAL_CELL, envire::TraversabilityClass (0.75)); //goal rectangle
     
     envire::TraversabilityGrid::ArrayType& exp_array = exploreMap->getGridData();
     
@@ -795,6 +809,9 @@ envire::TraversabilityGrid* Planner::coverageMapToTravGrid(const GridMap& mapToB
                     break;
                 case OBSTACLE:
                     exp_array[y][x] = OBSTACLE;
+                    break;                   
+                case GOAL_CELL:
+                    exp_array[y][x] = GOAL_CELL;
                     break;
                 default:
                     break;

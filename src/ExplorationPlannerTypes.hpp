@@ -8,7 +8,7 @@
 namespace exploration
 {	
     enum Status {SUCCESS, NO_GOAL, ERROR, NOT_IMPLEMENTED};            
-    enum DrivabilityClasses {VISIBLE, OBSTACLE = 2, EXPLORED, UNKNOWN };
+    enum DrivabilityClasses {VISIBLE, OBSTACLE = 2, EXPLORED, UNKNOWN, GOAL_CELL};
     
     struct Pose
     {
