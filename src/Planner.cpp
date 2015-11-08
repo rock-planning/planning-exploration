@@ -608,6 +608,7 @@ std::vector<base::samples::RigidBodyState> Planner::getCheapest(std::vector<base
     //int touch_difficult_region = 0;
     size_t robo_pt_x = 0, robo_pt_y = 0;
     bool robot_pos_grid_available = false;
+    
     if(mTraversability->toGrid(roboPose.position, robo_pt_x, robo_pt_y, mTraversability->getFrameNode())) {
         robot_pos_grid_available = true;
     } else {
@@ -617,104 +618,104 @@ std::vector<base::samples::RigidBodyState> Planner::getCheapest(std::vector<base
         
     for(std::vector<base::Vector3d>::const_iterator i = pts.begin(); i != pts.end(); ++i)
     {
-    Pose givenPoint;
-    // Transform point to grid since its necessary for willBeExplored.
-    size_t expl_pt_x = 0, expl_pt_y = 0;
-    // Turn Vector3d into a RigidBodyState that finally will be pushed into the list of results.
-    base::samples::RigidBodyState goalBodyState;
-    goalBodyState.position = *i;
-    if(mTraversability->toGrid(goalBodyState.position, expl_pt_x, expl_pt_y, mTraversability->getFrameNode()))
-    {     
-        givenPoint.x = expl_pt_x; 
-        givenPoint.y = expl_pt_y;
-    } else { // Should not happen.
-        outside_of_the_map++;
-        continue;
-    }
-    
-    // If the distance between the robot and the exploration point exceeds the sensor range
-    // (simply a far-away-goal) we use the edge detection to calculate the orientation
-    // of the goal pose, otherwise the orientation of the vector between robot and goal is used.
-    bool use_calculate_goal_orientation = false;
-    double dist_robo_goal_grid = 0.0;
-    if(robot_pos_grid_available && mMaxDistantSensorPoint > 0) {     
-        dist_robo_goal_grid = sqrt(pow((int)expl_pt_x - (int)robo_pt_x, 2) + 
-                pow((int)expl_pt_y - (int)robo_pt_y, 2));
-        if(dist_robo_goal_grid > mMaxDistantSensorPoint) {
-            use_calculate_goal_orientation = true;
+        Pose givenPoint;
+        // Transform point to grid since its necessary for willBeExplored.
+        size_t expl_pt_x = 0, expl_pt_y = 0;
+        // Turn Vector3d into a RigidBodyState that finally will be pushed into the list of results.
+        base::samples::RigidBodyState goalBodyState;
+        goalBodyState.position = *i;
+        if(mTraversability->toGrid(goalBodyState.position, expl_pt_x, expl_pt_y, mTraversability->getFrameNode()))
+        {     
+            givenPoint.x = expl_pt_x; 
+            givenPoint.y = expl_pt_y;
+        } else { // Should not happen.
+            outside_of_the_map++;
+            continue;
         }
-    } 
         
-    // Calculate angle of exploregoal-vector and map it to 0-2*pi radian.
-    double rotationOfPoint = 0.0;
-    // If the exploration point lies close to the robot or if no matching edge 
-    // can be found the old orientation calculation is used.
-    bool edge_found = calculateGoalOrientation(givenPoint, rotationOfPoint, visualize_debug_infos);
-    if(!(use_calculate_goal_orientation && edge_found)) {
-        rotationOfPoint = atan2(i->y() - roboPose.position.y(), i->x() - roboPose.position.x()); 
-        LOG_DEBUG("Goal orientation has been calculated using the current robot position");
-    } else {
-        LOG_DEBUG("Goal orientation has been calculated using edge detection");
-    }
-    rotationOfPoint = map0to2pi(rotationOfPoint);
-    givenPoint.theta = rotationOfPoint;
-    
-    // Calculate angular distance, will be [0,2*PI)
-    double angularDistance = fabs(yaw-rotationOfPoint);
-    
-    // Calculate the distance between the robot and the goalPose. 
-    double robotToPointDistance = (goalBodyState.position - 
-            base::Vector3d(roboPose.position.x(), roboPose.position.y(), 0)).norm();
-    // Goal poses which are too close to the robot are discarded.
-    if(robotToPointDistance < min_goal_distance || robotToPointDistance == 0) {
-        too_close_counter++;
-        continue;
-    }
-    
-    // Assign orientation to goal position.
-    goalBodyState.orientation = Eigen::Quaterniond(Eigen::AngleAxisd(givenPoint.theta, Eigen::Vector3d::UnitZ()));
-    
-    // Ignore ecploration point if it is no real exploration point.
-    unsigned numberOfExploredCells = willBeExplored(givenPoint).size();
-    if(numberOfExploredCells <= 0) {
-        no_new_cell_counter++;
-        continue;
-    }
-
-    // Requests the worst driveability at the goal pose using the width/length of the robot.
-    // If the goal pose rectangle touches an obstacle the goal point is ignored.
-    double worst_driveability = 1.0;
-    if(calculate_worst_driveability) {
-        base::Pose2D pose_local;
-        pose_local.position = base::Position2D(goalBodyState.position[0], goalBodyState.position[1]);
-        pose_local.orientation = goalBodyState.getYaw();
-        try {
-            worst_driveability = mTraversability->getWorstTraversabilityClassInRectangle
-                    (pose_local , robot_length_x, robot_width_y).getDrivability();
-        } catch (std::runtime_error &e) { // Unknown terrain class.
-            LOG_ERROR("Unknown terrain class");
-            unknown_terrain_class++;
+        // If the distance between the robot and the exploration point exceeds the sensor range
+        // (simply a far-away-goal) we use the edge detection to calculate the orientation
+        // of the goal pose, otherwise the orientation of the vector between robot and goal is used.
+        bool use_calculate_goal_orientation = false;
+        double dist_robo_goal_grid = 0.0;
+        if(robot_pos_grid_available && mMaxDistantSensorPoint > 0) {     
+            dist_robo_goal_grid = sqrt(pow((int)expl_pt_x - (int)robo_pt_x, 2) + 
+                    pow((int)expl_pt_y - (int)robo_pt_y, 2));
+            if(dist_robo_goal_grid > mMaxDistantSensorPoint) {
+                use_calculate_goal_orientation = true;
+            }
+        } 
+            
+        // Calculate angle of exploregoal-vector and map it to 0-2*pi radian.
+        double rotationOfPoint = 0.0;
+        // If the exploration point lies close to the robot or if no matching edge 
+        // can be found the old orientation calculation is used.
+        bool edge_found = calculateGoalOrientation(givenPoint, rotationOfPoint, visualize_debug_infos);
+        if(!(use_calculate_goal_orientation && edge_found)) {
+            rotationOfPoint = atan2(i->y() - roboPose.position.y(), i->x() - roboPose.position.x()); 
+            LOG_DEBUG("Goal orientation has been calculated using the current robot position");
+        } else {
+            LOG_DEBUG("Goal orientation has been calculated using edge detection");
+        }
+        rotationOfPoint = map0to2pi(rotationOfPoint);
+        givenPoint.theta = rotationOfPoint;
+        
+        // Calculate angular distance, will be [0,2*PI)
+        double angularDistance = fabs(yaw-rotationOfPoint);
+        
+        // Calculate the distance between the robot and the goalPose. 
+        double robotToPointDistance = (goalBodyState.position - 
+                base::Vector3d(roboPose.position.x(), roboPose.position.y(), 0)).norm();
+        // Goal poses which are too close to the robot are discarded.
+        if(robotToPointDistance < min_goal_distance || robotToPointDistance == 0) {
+            too_close_counter++;
             continue;
         }
-        if(worst_driveability == 0.0) {
-            touch_obstacle++;
+        
+        // Assign orientation to goal position.
+        goalBodyState.orientation = Eigen::Quaterniond(Eigen::AngleAxisd(givenPoint.theta, Eigen::Vector3d::UnitZ()));
+        
+        // Ignore ecploration point if it is no real exploration point.
+        unsigned numberOfExploredCells = willBeExplored(givenPoint).size();
+        if(numberOfExploredCells <= 0) {
+            no_new_cell_counter++;
             continue;
         }
-    }
-    
-    // Final rating of goalPose. robotToPointDistance cannot be zero.
-    // Larger values are preferred.
-    // Lazy, very curious exploration.
-    //printf("Pose (%4.2f, %4.2f, %4.2f): ");
-    double combinedRating = numberOfExploredCells / ((angularDistance+1) * robotToPointDistance);
-    // Regarding the worst driveability as well creates a lazy, curious and cautious exploration.
-    combinedRating *= worst_driveability;
-    
-    // Add it to the list which will be sorted afterwards. 
-    // 2nd, 3rd... entry is for "debugging".
-    listToBeSorted.push_back(std::make_tuple(goalBodyState, combinedRating, 
-            numberOfExploredCells, angularDistance, robotToPointDistance));
 
+        // Requests the worst driveability at the goal pose using the width/length of the robot.
+        // If the goal pose rectangle touches an obstacle the goal point is ignored.
+        double worst_driveability = 1.0;
+        if(calculate_worst_driveability) {
+            base::Pose2D pose_local;
+            pose_local.position = base::Position2D(goalBodyState.position[0], goalBodyState.position[1]);
+            pose_local.orientation = goalBodyState.getYaw();
+            try {
+                worst_driveability = mTraversability->getWorstTraversabilityClassInRectangle
+                        (pose_local , robot_length_x, robot_width_y).getDrivability();
+            } catch (std::runtime_error &e) { // Unknown terrain class.
+                LOG_ERROR("Unknown terrain class");
+                unknown_terrain_class++;
+                continue;
+            }
+            if(worst_driveability == 0.0) {
+                touch_obstacle++;
+                continue;
+            }
+        }
+        
+        // Final rating of goalPose. robotToPointDistance cannot be zero.
+        // Larger values are preferred.
+        // Lazy, very curious exploration.
+        //printf("Pose (%4.2f, %4.2f, %4.2f): ");
+        double combinedRating = numberOfExploredCells / ((angularDistance+1) * robotToPointDistance);
+        // Regarding the worst driveability as well creates a lazy, curious and cautious exploration.
+        combinedRating *= worst_driveability;
+        // Increase the value of an exploration point sligthly if the edge detection 
+        
+        // Add it to the list which will be sorted afterwards. 
+        // 2nd, 3rd... entry is for "debugging".
+        listToBeSorted.push_back(std::make_tuple(goalBodyState, combinedRating, 
+                numberOfExploredCells, angularDistance, robotToPointDistance));
     }
     
     LOG_INFO("%d of %d exploration points are uses: %d touches an obstacle, %d are too close to the robot, %d leads to no new cells, %d lies outside of the map", 
