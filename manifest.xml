@@ -3,6 +3,7 @@
   Finds exploration targets for a single robot on grid maps.
   </description>
   <author>Sebastian Kasperski/sebastian.kasperski@dfki.de</author>
+  <author>Stefan Haase/stefan.haase@dfki.de</author>
   <license></license>
   <url>http://robotik.dfki-bremen.de</url>
   <logo>http://</logo>
