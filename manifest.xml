@@ -10,4 +10,5 @@
   <depend package="base/cmake" />
   <depend package="base/types" />
   <depend package="slam/envire" />
+  <depend package="opencv" />
 </package>
