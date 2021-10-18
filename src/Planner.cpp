@@ -498,7 +498,7 @@ bool Planner::calculateGoalOrientation(struct Pose goal_point, double& orientati
     HoughLines(mat_canny, lines, 1, CV_PI/32, 10);
 
     if(show_debug) {
-        cvtColor(mat_canny, mat_canny_bgr, CV_GRAY2BGR);
+        cvtColor(mat_canny, mat_canny_bgr, cv::COLOR_GRAY2BGR);
     }
         
     // Examines the found edges, choose the best one if available.
