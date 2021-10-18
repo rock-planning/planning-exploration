@@ -7,8 +7,6 @@
 #include <envire/maps/MLSGrid.hpp>
 #include <envire/maps/TraversabilityGrid.hpp>
 
-#include <opencv2/imgproc/imgproc.hpp>
-
 #include "Config.hpp"
 
 namespace exploration
@@ -212,15 +210,6 @@ namespace exploration
          * Max distant sensor polygon point in grid coordinates.
          */
         double mMaxDistantSensorPoint;
-        
-        /**
-         * Counts the black(0) pixels starting at 'pose' using the contained direction.
-         * vec_len_px defines the final length of the vector. E.g. vec_len_px == 10
-         * means that vec from 1 to 10 are used to count the black pixels.
-         * TODO: Currently a pixel may be counted twice, but this should not be a problem
-         * because we do not need accurate results, just a tendency.
-         */
-        int countBlackPixels(cv::Mat mat, struct Pose pose, int vec_len_px=10);
 	};
 }
 

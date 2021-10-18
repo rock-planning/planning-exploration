@@ -10,11 +10,44 @@
 #include <base/Logging.hpp>
 
 #include <opencv2/highgui/highgui.hpp>
+#include <opencv2/imgproc/imgproc.hpp>
 
 using namespace exploration;
 
 typedef std::multimap<int,GridPoint> Queue;
 typedef std::pair<int,GridPoint> Entry;
+
+
+namespace {
+    /**
+     * Counts the black(0) pixels starting at 'pose' using the contained direction.
+     * vec_len_px defines the final length of the vector. E.g. vec_len_px == 10
+     * means that vec from 1 to 10 are used to count the black pixels.
+     * TODO: Currently a pixel may be counted twice, but this should not be a problem
+     * because we do not need accurate results, just a tendency.
+     */
+    int countBlackPixels(cv::Mat mat, struct Pose pose, int vec_len_px) {
+        base::Vector2d start(pose.x, pose.y);
+        double orientation = pose.theta;
+        int count_black = 0;
+
+        for(int i=1; i<=vec_len_px; i++) {
+            base::Vector2d vec(i, 0.0);
+
+            Eigen::Rotation2D<double> rot2(orientation);
+            vec = rot2 * vec;
+            vec += start;
+            if(vec[0] < 0 || vec[0] >= mat.cols ||
+                vec[1] < 0 || vec[1] >= mat.rows) {
+                return count_black;
+            }
+            if(mat.at<uchar>(vec[1], vec[0]) == 0) {
+                count_black++;
+            }
+        }
+        return count_black;
+    }
+}
 
 
 Planner::Planner(Config config)
@@ -498,7 +531,7 @@ bool Planner::calculateGoalOrientation(struct Pose goal_point, double& orientati
     HoughLines(mat_canny, lines, 1, CV_PI/32, 10);
 
     if(show_debug) {
-        cvtColor(mat_canny, mat_canny_bgr, CV_GRAY2BGR);
+        cvtColor(mat_canny, mat_canny_bgr, cv::COLOR_GRAY2BGR);
     }
         
     // Examines the found edges, choose the best one if available.
@@ -852,26 +885,4 @@ double Planner::map0to2pi(double angle_rad) {
         angle_rad += pi2;
     }
     return angle_rad;
-}
-
-int Planner::countBlackPixels(cv::Mat mat, struct Pose pose, int vec_len_px) {
-    base::Vector2d start(pose.x, pose.y);
-    double orientation = pose.theta;
-    int count_black = 0;
-    
-    for(int i=1; i<=vec_len_px; i++) {
-        base::Vector2d vec(i, 0.0);
-        
-        Eigen::Rotation2D<double> rot2(orientation);
-        vec = rot2 * vec;
-        vec += start;
-        if(vec[0] < 0 || vec[0] >= mat.cols ||
-            vec[1] < 0 || vec[1] >= mat.rows) {
-            return count_black;
-        }
-        if(mat.at<uchar>(vec[1], vec[0]) == 0) {
-            count_black++;
-        }
-    }
-    return count_black;
 }
